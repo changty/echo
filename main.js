@@ -3,6 +3,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  dialog,
   globalShortcut,
   ipcMain,
   Menu,
@@ -11,21 +12,27 @@ import {
   Tray,
 } from "electron";
 import fs from "fs";
-import path from "path";
-import url from "url";
-ipcMain.handle("ping", () => "pong from main");
-
+import path, { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import { runLLM } from "./providers/providerManager.js";
 
 dotenv.config();
-const isDev = !app.isPackaged;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 let win;
 let tray;
+let CONFIG_PATH;
 
-const CONFIG_PATH = path.join(process.cwd(), "config.json");
+// ---------- paths ----------
+const appRoot = () => app.getAppPath();
+const resolveInApp = (...parts) => join(appRoot(), ...parts);
+
+// ---------- config ----------
 function defaultConfig() {
   return {
-    hotkey: "Alt+Space",
+    hotkey: "Ctrl+Space",
     targetLang: "",
     defaultProviderId: "prov-openai",
     providers: [
@@ -52,23 +59,43 @@ function defaultConfig() {
         host: "http://localhost:11434",
         model: "llama3.1:8b",
       },
+      {
+        id: "prov-gemini",
+        label: "Gemini (Google AI Studio)",
+        type: "gemini",
+        apiBase: "https://generativelanguage.googleapis.com",
+        apiKeyEnv: "GEMINI_API_KEY",
+        model: "gemini-2.5-flash",
+      },
     ],
   };
 }
 
 let config = defaultConfig();
-if (fs.existsSync(CONFIG_PATH)) {
+
+function loadConfig() {
+  const userCfg = path.join(app.getPath("userData"), "config.json");
+  CONFIG_PATH = userCfg;
   try {
-    config = { ...config, ...JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8")) };
+    fs.mkdirSync(path.dirname(userCfg), { recursive: true });
   } catch {}
+  if (fs.existsSync(userCfg)) {
+    try {
+      config = JSON.parse(fs.readFileSync(userCfg, "utf8"));
+    } catch {}
+  }
+  if (!config) config = defaultConfig();
 }
 
 function saveConfig() {
   try {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf8");
-  } catch {}
+  } catch (e) {
+    console.warn("saveConfig failed:", e);
+  }
 }
 
+// ---------- window ----------
 function createWindow() {
   win = new BrowserWindow({
     width: 720,
@@ -83,44 +110,36 @@ function createWindow() {
     vibrancy: "under-window",
     visualEffectState: "active",
     webPreferences: {
-      preload: path.join(process.cwd(), "preload.cjs"),
+      preload: resolveInApp("preload.cjs"),
       nodeIntegration: false,
       contextIsolation: true,
     },
   });
 
-  const indexURL = isDev
-    ? url.format({
-        protocol: "file",
-        slashes: true,
-        pathname: path.join(process.cwd(), "src/renderer.html"),
-      })
-    : url.format({
-        protocol: "file",
-        slashes: true,
-        pathname: path.join(process.resourcesPath, "src/renderer.html"),
-      });
+  const htmlPath = resolveInApp("src", "renderer.html");
+  win.loadFile(htmlPath);
 
-  win.loadURL(indexURL);
-
+  // Debug visibility & logs
+  win.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    console.error("[did-fail-load]", code, desc, url);
+  });
   win.webContents.on("did-finish-load", () => {
-    if (!app.isPackaged) win.webContents.openDevTools({ mode: "detach" });
+    console.log("[did-finish-load] OK:", htmlPath);
+    win.show();
+  });
+  win.webContents.on("console-message", (_e, level, message) => {
+    console.log("[renderer]", level, message);
   });
 
   win.on("blur", () => {
-    // Keep window visible if you're debugging in a detached DevTools window
     if (win.webContents.isDevToolsOpened()) return;
     win.hide();
   });
 }
 
-function registerHotkey() {
-  try {
-    globalShortcut.unregisterAll();
-    globalShortcut.register(config.hotkey, () => toggleWindow());
-  } catch (e) {
-    console.error("Failed to register hotkey", e);
-  }
+// ---------- hotkey ----------
+function isValidAccel(acc) {
+  return typeof acc === "string" && acc.trim() !== "";
 }
 
 function toggleWindow() {
@@ -134,6 +153,73 @@ function toggleWindow() {
   }
 }
 
+function registerHotkey() {
+  try {
+    globalShortcut.unregisterAll();
+
+    let acc = config.hotkey;
+    if (!isValidAccel(acc)) acc = "Ctrl+Space";
+
+    const ok = globalShortcut.register(acc, toggleWindow);
+    if (!ok) {
+      console.warn("Failed to register hotkey:", acc);
+      const fallbacks = [
+        "Ctrl+Space",
+        "Ctrl+Shift+Space",
+        "CommandOrControl+Shift+Space",
+      ];
+      let used = null;
+      for (const f of fallbacks) {
+        if (globalShortcut.register(f, toggleWindow)) {
+          used = f;
+          break;
+        }
+      }
+      if (used) {
+        dialog.showMessageBox({
+          type: "warning",
+          message: `Couldn’t register "${acc}". Using "${used}" instead. You can change it in Settings.`,
+        });
+        config.hotkey = used;
+        saveConfig();
+      } else {
+        dialog.showMessageBox({
+          type: "warning",
+          message: `Couldn’t register "${acc}". Open settings to pick another.`,
+        });
+        toggleWindow(); // ensure UI is reachable
+      }
+    }
+  } catch (e) {
+    console.error("registerHotkey error", e);
+    toggleWindow();
+  }
+}
+
+// ---------- tray ----------
+function createTray() {
+  try {
+    const p = resolveInApp("src", "icons", "trayTemplate.png");
+    let img = nativeImage.createFromPath(p);
+    if (!img || img.isEmpty()) return null;
+    img.setTemplateImage?.(true);
+    const t = new Tray(img);
+    t.setToolTip("Echo");
+    t.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: "Open", click: () => toggleWindow() },
+        { type: "separator" },
+        { label: "Quit", click: () => app.quit() },
+      ])
+    );
+    return t;
+  } catch (e) {
+    console.warn("createTray failed:", e);
+    return null;
+  }
+}
+
+// ---------- clipboard payload ----------
 function readClipboardPayload() {
   const text = clipboard.readText().trim();
   const img = clipboard.readImage();
@@ -147,27 +233,31 @@ function readClipboardPayload() {
   return { text, imageData };
 }
 
+// ---------- app lifecycle ----------
 app.whenReady().then(() => {
+  loadConfig();
   createWindow();
   registerHotkey();
+  tray = createTray();
+
+  // Devtools toggle
   globalShortcut.register("CommandOrControl+Alt+I", () => {
     if (win) win.webContents.toggleDevTools();
   });
-
-  tray = new Tray(nativeImage.createEmpty());
-  tray.setToolTip("Echo");
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: "Open", click: () => toggleWindow() },
-      { label: "Quit", click: () => app.quit() },
-    ])
-  );
 });
 
+app.on("activate", () => {
+  if (win) {
+    win.show();
+    win.focus();
+    win.webContents.send("app:opened", readClipboardPayload());
+  }
+});
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
 });
 
+// ---------- IPC ----------
 ipcMain.handle("clipboard:read", () => readClipboardPayload());
 ipcMain.handle("clipboard:write", (_e, text) => {
   clipboard.writeText(text || "");
@@ -176,40 +266,17 @@ ipcMain.handle("clipboard:write", (_e, text) => {
 
 ipcMain.handle("config:get", () => ({ ...config }));
 ipcMain.handle("config:set", (_e, next) => {
-  // Merge & persist
-  config = { ...config, ...next };
-  try {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf8");
-  } catch {}
+  config = { ...config, ...next }; // hotkey/targetLang etc.
+  saveConfig();
   registerHotkey();
   return { ok: true, config };
 });
 
-// IPC: resize to a given content height (we'll clamp between min and 90% of work area)
-ipcMain.handle("window:resizeTo", (_e, { height, width }) => {
-  if (!win) return { ok: false, error: "no window" };
-
-  const bounds = win.getBounds();
-  const display = screen.getDisplayMatching(bounds);
-  const maxH = Math.floor(display.workArea.height * 0.9);
-  const minH = 320;
-
-  const targetH = Math.max(
-    minH,
-    Math.min(Math.floor(height || bounds.height), maxH)
-  );
-  const targetW = Math.floor(width || bounds.width);
-
-  win.setContentSize(targetW, targetH); // because useContentSize: true
-  return { ok: true, size: { width: targetW, height: targetH } };
-});
-
-// ----- IPC: providers CRUD -----
+// providers CRUD
 ipcMain.handle("providers:list", () => ({
   providers: config.providers,
   defaultProviderId: config.defaultProviderId,
 }));
-
 ipcMain.handle("providers:setDefault", (_e, id) => {
   if (!config.providers.find((p) => p.id === id))
     return { ok: false, error: "Provider not found" };
@@ -217,13 +284,12 @@ ipcMain.handle("providers:setDefault", (_e, id) => {
   saveConfig();
   return { ok: true };
 });
-
 ipcMain.handle("providers:save", (_e, prov) => {
   const id = prov.id || "prov-" + Date.now().toString(36);
   const normalized = {
     id,
     label: prov.label || "Provider",
-    type: prov.type, // 'openai' | 'openaiCompatible' | 'ollama'
+    type: prov.type,
     apiBase: prov.apiBase,
     apiKeyEnv: prov.apiKeyEnv,
     host: prov.host,
@@ -236,7 +302,6 @@ ipcMain.handle("providers:save", (_e, prov) => {
   saveConfig();
   return { ok: true, provider: normalized };
 });
-
 ipcMain.handle("providers:delete", (_e, id) => {
   const idx = config.providers.findIndex((p) => p.id === id);
   if (idx < 0) return { ok: false, error: "Not found" };
@@ -248,14 +313,39 @@ ipcMain.handle("providers:delete", (_e, id) => {
   return { ok: true };
 });
 
+ipcMain.handle("window:resizeTo", (_e, { height, width, margin = 80 }) => {
+  if (!win) return { ok: false, error: "no window" };
+
+  const bounds = win.getBounds(); // window (incl. chrome)
+  const [cw, ch] = win.getContentSize(); // content size now
+  const chrome = bounds.height - ch; // titlebar etc. (frameless → ~0)
+  const disp = screen.getDisplayMatching(bounds);
+  const wa = disp.workArea; // excludes Dock/Menu Bar
+  const bottom = wa.y + wa.height;
+  const minH = 320;
+
+  // Max content height so bottom stays on-screen
+  const maxByBottom = bottom - bounds.y - chrome - margin;
+  // Also apply a global cap (e.g. 95% of work area)
+  const maxByWork = Math.floor(wa.height * 0.95);
+  const hardMax = Math.max(minH, Math.min(maxByBottom, maxByWork));
+
+  const reqH = Math.floor(height || ch);
+  const targetH = Math.max(minH, Math.min(reqH, hardMax));
+  const targetW = Math.floor(width || bounds.width);
+
+  // useContentSize must be true on the BrowserWindow
+  win.setContentSize(targetW, targetH);
+  return { ok: true, size: { width: targetW, height: targetH } };
+});
+
 ipcMain.handle("llm:run", async (_e, payload) => {
   const { action, inputText, imageData, providerConfig } = payload;
   const providerId = providerConfig?.providerId || config.defaultProviderId;
   const providerSpec =
     config.providers.find((p) => p.id === providerId) || config.providers[0];
   const system = getSystemPrompt(action, { hasImage: !!imageData });
-  const response = await runLLM({ providerSpec, system, inputText, imageData });
-  return response;
+  return await runLLM({ providerSpec, system, inputText, imageData });
 });
 
 function getSystemPrompt(action, { hasImage } = { hasImage: false }) {
@@ -264,7 +354,7 @@ function getSystemPrompt(action, { hasImage } = { hasImage: false }) {
     : "";
   const base = {
     ask: `Give a brief answer or explanation to the given input${visionHint}`,
-    proofread: `You are a meticulous copy editor. Fix grammar, punctuation, clarity, and tone while preserving meaning.${visionHint}`,
+    proofread: `You are a meticulous copy editor. Fix grammar, punctuation, clarity, and tone while preserving meaning. Provide only the proofread result. No other explanation.${visionHint}`,
     translate_en: `Translate the user's text to natural, idiomatic English. Provide only the translation, no other explanations.${visionHint}`,
     translate_to: `Translate the user's text into the target language. Provide only the translation without any explanation.${visionHint}`,
     summarize: `Summarize the user's text concisely. Capture key points and any actionable items.${visionHint}`,

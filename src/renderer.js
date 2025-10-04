@@ -55,7 +55,7 @@ const content = document.getElementById("content");
 
 input.style.height = "auto";
 input.style.minHeight = "220px";
-// input.style.maxHeight = "70vh";
+// input.style.maxHeight = "100%";
 
 function autoGrowTextarea() {
   input.style.height = "auto";

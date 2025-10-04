@@ -55,11 +55,12 @@ Use the **⚙︎ Settings** button to change hotkey, provider, model, API base, 
 
 ## Keyboard Shortcuts
 
-- **Alt+1** – Proofread
-- **Alt+2** – Translate → English
-- **Alt+3** – Translate → (asks for language; uses default if set)
-- **Alt+4** – Summarize
-- **Alt+5** – Rewrite in style (asks for style)
+- **Mod+1** – Ask ("regular mode")
+- **Mod+2** – Proofread
+- **Mod+3** – Translate → English
+- **Mod+4** – Translate → (asks for language; uses default if set)
+- **Mod+5** – Summarize
+- **Mod+6** – Rewrite in style (asks for style)
 - **Ctrl/⌘ + Enter** – Run the current action
 - **Esc** – Close the window
 - Clicking outside the window (blur) also hides it.
