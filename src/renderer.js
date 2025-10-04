@@ -16,6 +16,31 @@ const sBase = document.getElementById("s-base");
 const sTargetLang = document.getElementById("s-targetLang");
 const saveBtn = document.getElementById("saveSettings");
 
+const sDefaultProvider = document.getElementById("s-defaultProvider");
+const provList = document.getElementById("prov-list");
+const btnAddProvider = document.getElementById("btn-add-provider");
+
+const providerDlg = document.getElementById("providerDlg");
+const providerForm = document.getElementById("providerForm");
+const pId = document.getElementById("p-id");
+const pModel = document.getElementById("p-model");
+const pLabel = document.getElementById("p-label");
+const pType = document.getElementById("p-type");
+const pApiBase = document.getElementById("p-apiBase");
+const pApiKeyEnv = document.getElementById("p-apiKeyEnv");
+const pHost = document.getElementById("p-host");
+const pRowApiBase = document.getElementById("p-row-apiBase");
+const pRowApiKeyEnv = document.getElementById("p-row-apiKeyEnv");
+const pRowHost = document.getElementById("p-row-host");
+const providerSaveBtn = document.getElementById("providerSaveBtn");
+document.getElementById("providerCancelBtn")?.addEventListener("click", () => {
+  providerDlg.close();
+});
+
+document.getElementById("settingsClose")?.addEventListener("click", () => {
+  settingsDlg.close();
+});
+
 let currentAction = "proofread";
 let imageData = null;
 let providerConfig = null;
@@ -210,8 +235,6 @@ async function run() {
     providerConfig,
   };
 
-  console.log("payload", payload);
-
   setBusy(true);
   try {
     const result = await window.api.runLLM(payload);
@@ -230,7 +253,7 @@ async function run() {
 }
 
 function setBusy(b) {
-  document.body.style.opacity = b ? 0.7 : 1;
+  document.body.style.opacity = b ? 0.6 : 1;
 }
 function flash(msg) {
   const el = document.createElement("div");
@@ -251,65 +274,164 @@ function flash(msg) {
 async function openSettings() {
   const cfg = await window.api.getConfig();
   sHotkey.value = cfg.hotkey || "";
-  const prov = cfg.provider || "openai";
-  sProvider.value = prov;
-  sModel.value =
-    (prov === "openai"
-      ? cfg.openai?.model
-      : prov === "openaiCompatible"
-      ? cfg.openaiCompatible?.model
-      : cfg.ollama?.model) || "";
-  sBase.value =
-    (prov === "openai"
-      ? cfg.openai?.apiBase
-      : prov === "openaiCompatible"
-      ? cfg.openaiCompatible?.apiBase
-      : cfg.ollama?.host) || "";
   sTargetLang.value = cfg.targetLang || "";
+  await refreshProvidersUI();
   settingsDlg.showModal();
 }
 
 saveBtn?.addEventListener("click", async (e) => {
   e.preventDefault();
-  const prov = sProvider.value;
-  const next = {
-    provider: prov,
-    hotkey: sHotkey.value,
-    targetLang: sTargetLang.value,
-  };
-  if (prov === "openai")
-    next.openai = {
-      ...(await window.api.getConfig()).openai,
-      apiBase: sBase.value,
-      model: sModel.value,
-    };
-  if (prov === "openaiCompatible")
-    next.openaiCompatible = {
-      ...(await window.api.getConfig()).openaiCompatible,
-      apiBase: sBase.value,
-      model: sModel.value,
-    };
-  if (prov === "ollama")
-    next.ollama = {
-      ...(await window.api.getConfig()).ollama,
-      host: sBase.value,
-      model: sModel.value,
-    };
+  const next = { hotkey: sHotkey.value, targetLang: sTargetLang.value };
   const res = await window.api.setConfig(next);
   if (res?.ok) {
-    providerEl.textContent = `Provider: ${prov}`;
+    await applyFooterProviderLabel();
     settingsDlg.close();
     flash("Settings saved");
   }
 });
 
-// Load provider label from config on first load
-(async () => {
-  try {
-    const cfg = await window.api.getConfig();
-    providerConfig = { provider: cfg.provider, targetLang: cfg.targetLang };
-    providerEl.textContent = `Provider: ${cfg.provider}`;
-  } catch {
-    console.log("Error loading provider");
+function showProviderRowsForType(type) {
+  const isOllama = type === "ollama";
+  pRowHost.classList.toggle("hidden", !isOllama);
+  pRowApiBase.classList.toggle("hidden", isOllama);
+  pRowApiKeyEnv.classList.toggle("hidden", isOllama);
+}
+
+pType.addEventListener("change", () => showProviderRowsForType(pType.value));
+
+async function refreshProvidersUI() {
+  const { providers, defaultProviderId } = await window.api.listProviders();
+
+  // Default provider dropdown
+  sDefaultProvider.innerHTML = "";
+  for (const p of providers) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = `${p.label} (${p.type})`;
+    if (p.id === defaultProviderId) opt.selected = true;
+    sDefaultProvider.appendChild(opt);
   }
+
+  // Provider list
+  provList.innerHTML = "";
+  for (const p of providers) {
+    const row = document.createElement("div");
+    row.className =
+      "flex items-center justify-between border border-white/10 rounded-lg px-3 py-2 bg-white/5";
+
+    const meta = document.createElement("div");
+    meta.className = "text-sm";
+    meta.innerHTML = `<div class="font-medium">${p.label}</div>
+      <div class="text-xs text-zinc-400">${p.type} · ${p.model || ""} · ${
+      p.type === "ollama" ? p.host : p.apiBase
+    }</div>`;
+    const actions = document.createElement("div");
+    actions.className = "flex gap-2";
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "btn";
+    editBtn.type = "button";
+    editBtn.textContent = "Edit";
+    editBtn.onclick = (e) => {
+      e.preventDefault();
+      openProviderEditor(p);
+    };
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn";
+    delBtn.type = "button";
+    delBtn.textContent = "Delete";
+    delBtn.onclick = async (e) => {
+      e.preventDefault();
+      if (!confirm(`Delete provider "${p.label}"?`)) return;
+      const res = await window.api.deleteProvider(p.id);
+      if (!res?.ok) return alert(res.error || "Delete failed");
+      await refreshProvidersUI();
+      await applyFooterProviderLabel();
+    };
+
+    actions.append(editBtn, delBtn);
+    row.append(meta, actions);
+    provList.appendChild(row);
+  }
+}
+
+function openProviderEditor(p = null) {
+  console.log("open: ", p);
+  pId.value = p?.id || "";
+  pLabel.value = p?.label || "";
+  pType.value = p?.type || "openai";
+  pApiBase.value = p?.apiBase || "";
+  pApiKeyEnv.value = p?.apiKeyEnv || "";
+  pHost.value = p?.host || "";
+  pModel.value = p?.model || "";
+  showProviderRowsForType(pType.value);
+  providerDlg.showModal();
+}
+
+providerForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const prov = {
+    id: pId.value || undefined,
+    label: (pLabel.value || "").trim() || "Provider",
+    type: pType.value,
+    apiBase: (pApiBase.value || "").trim() || undefined,
+    apiKeyEnv: (pApiKeyEnv.value || "").trim() || undefined,
+    host: (pHost.value || "").trim() || undefined,
+    model: (pModel.value || "").trim() || "",
+  };
+  const res = await window.api.saveProvider(prov);
+  if (!res?.ok) return alert(res.error || "Save failed");
+  providerDlg.close();
+  await refreshProvidersUI();
+  await applyFooterProviderLabel();
+});
+
+providerSaveBtn.addEventListener("click", async (e) => {
+  e.preventDefault();
+  const prov = {
+    id: pId.value || undefined,
+    label: pLabel.value.trim() || "Provider",
+    type: pType.value,
+    apiBase: pApiBase.value.trim() || undefined,
+    apiKeyEnv: pApiKeyEnv.value.trim() || undefined,
+    host: pHost.value.trim() || undefined,
+    model: pModel.value.trim() || "",
+  };
+  const res = await window.api.saveProvider(prov);
+  if (!res?.ok) return alert(res.error || "Save failed");
+  providerDlg.close();
+  await refreshProvidersUI();
+  await applyFooterProviderLabel();
+});
+
+btnAddProvider?.addEventListener("click", (e) => {
+  e.preventDefault();
+  openProviderEditor(null);
+});
+
+sDefaultProvider?.addEventListener("change", async () => {
+  const id = sDefaultProvider.value;
+  const res = await window.api.setDefaultProvider(id);
+  if (!res?.ok) return alert(res.error || "Failed to set default");
+  await applyFooterProviderLabel();
+});
+
+// Load provider label from config on first load
+async function applyFooterProviderLabel() {
+  try {
+    const { providers, defaultProviderId } = await window.api.listProviders();
+    const def = providers.find((p) => p.id === defaultProviderId);
+    providerEl.textContent = def ? `Provider: ${def.label}` : "";
+
+    providerConfig = {
+      providerId: def?.id,
+      targetLang: (await window.api.getConfig()).targetLang,
+    };
+  } catch {}
+}
+
+// call once on boot
+(async () => {
+  await applyFooterProviderLabel();
 })();

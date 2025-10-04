@@ -7,7 +7,7 @@
       content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LLM Spotlight</title>
+    <title>Echo</title>
     <!-- Tailwind output (built from tw.css) -->
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -17,7 +17,9 @@
       class="w-full h-full backdrop-blur-2xl saturate-125 bg-zinc-900/85 rounded-2xl shadow-2xl p-3"
     >
       <div id="bar" class="flex justify-between items-center px-2.5 py-1.5">
-        <span id="brand" class="font-bold tracking-wide opacity-90">⌘ LLM</span>
+        <span id="brand" class="font-bold tracking-wide opacity-90"
+          >⌘ Echo</span
+        >
         <div id="actions" class="flex items-center">
           <button id="act-proof" title="Alt+1" class="btn ml-2">
             Proofread
@@ -58,75 +60,149 @@
           id="footer"
           class="flex justify-between mt-2 text-xs text-zinc-400"
         >
-          <span
-            >Hotkeys: Alt+1 Proofread · Alt+2 English · Alt+3 To… · Alt+4
-            Summarize · Alt+5 Rewrite · Ctrl/⌘+Enter Run · Esc Close</span
-          >
+          <span>
+            Hotkeys: Alt+1 Proofread · Alt+2 English · Alt+3 To… · Alt+4
+            Summarize · Alt+5 Rewrite <br />Ctrl/⌘+Enter Run · Esc Close
+          </span>
           <span id="provider"></span>
         </div>
       </div>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- Settings Modal (single column & wider) -->
     <dialog
       id="settings"
-      class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-4 w-[560px]"
+      class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-5 w-[800px]"
     >
-      <form method="dialog" id="settingsForm">
-        <h3 class="text-base font-semibold mb-3">Settings</h3>
-        <div class="grid grid-cols-2 gap-3">
-          <label class="flex flex-col gap-1.5 text-sm"
-            >Global Hotkey
-            <input
-              id="s-hotkey"
-              placeholder="Alt+Space"
-              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
-            />
-          </label>
-          <label class="flex flex-col gap-1.5 text-sm"
-            >Provider
-            <select
-              id="s-provider"
-              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
-            >
-              <option value="openai">OpenAI</option>
-              <option value="openaiCompatible">OpenAI-Compatible</option>
-              <option value="ollama">Ollama (local)</option>
-            </select>
-          </label>
-          <label class="flex flex-col gap-1.5 text-sm"
-            >Model
-            <input
-              id="s-model"
-              placeholder="gpt-4o-mini / llama3.1:8b"
-              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
-            />
-          </label>
-          <label class="flex flex-col gap-1.5 text-sm"
-            >API Base
-            <input
-              id="s-base"
-              placeholder="https://api.openai.com/v1 or http://localhost:11434/v1"
-              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
-            />
-          </label>
-          <label class="flex flex-col gap-1.5 text-sm"
-            >Target language (default for Alt+3)
-            <input
-              id="s-targetLang"
-              placeholder="Finnish"
-              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
-            />
-          </label>
+      <form id="settingsForm" class="space-y-3">
+        <h3 class="text-base font-semibold">Settings</h3>
+
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Global Hotkey
+          <input
+            id="s-hotkey"
+            placeholder="Alt+Space"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Default Provider
+          <select
+            id="s-defaultProvider"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+          ></select>
+        </label>
+
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Target language (default for Alt+3)
+          <input
+            id="s-targetLang"
+            placeholder="Finnish"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+          />
+        </label>
+
+        <h4 class="mt-4 mb-2 font-semibold">Providers</h4>
+        <div id="prov-list" class="space-y-2 overflow-auto pr-1"></div>
+        <div class="flex flex-col justify-end mt-2 mb-8">
+          <button id="btn-add-provider" class="btn" type="button">
+            Add Provider
+          </button>
         </div>
-        <menu class="flex justify-end gap-2 mt-3">
-          <button value="cancel" class="btn">Cancel</button>
-          <button id="saveSettings" value="default" class="btn">Save</button>
+
+        <menu class="flex justify-end gap-2 mt-4">
+          <button type="button" class="btn" id="settingsClose">Close</button>
+          <button id="saveSettings" class="btn" type="submit">Save</button>
         </menu>
-        <p class="text-xs text-zinc-400 mt-2">
+
+        <p class="text-xs text-zinc-400">
           API keys are read from your .env according to provider (e.g.,
           OPENAI_API_KEY). Keys are not stored here.
         </p>
+      </form>
+    </dialog>
+
+    <!-- Provider Editor Dialog -->
+    <dialog
+      id="providerDlg"
+      class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-5 w-[560px]"
+    >
+      <!-- NOTE: normal form (NOT method="dialog"), we handle submit in JS -->
+      <form id="providerForm" class="space-y-2">
+        <input id="p-id" type="hidden" />
+
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Label
+          <input
+            id="p-label"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Type
+          <select
+            id="p-type"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          >
+            <option value="openai">OpenAI</option>
+            <option value="openaiCompatible">OpenAI-Compatible</option>
+            <option value="ollama">Ollama</option>
+            <option value="gemini">Gemini</option>
+          </select>
+        </label>
+
+        <div id="p-row-apiBase" class="flex flex-col gap-1.5 text-sm">
+          <label
+            >API Base
+            <input
+              id="p-apiBase"
+              placeholder="https://api.openai.com/v1"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+            />
+          </label>
+        </div>
+
+        <div id="p-row-apiKeyEnv" class="flex flex-col gap-1.5 text-sm">
+          <label
+            >API Key ENV var
+            <input
+              id="p-apiKeyEnv"
+              placeholder="OPENAI_API_KEY"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+            />
+          </label>
+        </div>
+
+        <div id="p-row-host" class="flex flex-col gap-1.5 text-sm hidden">
+          <label
+            >Host (Ollama)
+            <input
+              id="p-host"
+              placeholder="http://localhost:11434"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+            />
+          </label>
+        </div>
+
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Model
+          <input
+            id="p-model"
+            placeholder="gpt-4o-mini / gemma3:27b"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+        </label>
+
+        <menu class="flex justify-end gap-2 mt-3">
+          <button type="button" id="providerCancelBtn" class="btn">
+            Cancel
+          </button>
+          <button id="providerSaveBtn" type="submit" class="btn">
+            Save Provider
+          </button>
+        </menu>
       </form>
     </dialog>
 
@@ -145,7 +221,7 @@
         />
         <menu class="flex justify-end gap-2 mt-3">
           <button value="cancel" class="btn">Cancel</button>
-          <button id="promptOk" value="default" class="btn">OK</button>
+          <button id="promptOk" value="default" class="btn">Ok</button>
         </menu>
       </form>
     </dialog>

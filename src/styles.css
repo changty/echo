@@ -591,8 +591,12 @@ dialog::backdrop {
   position: fixed;
 }
 
-.mb-3 {
-  margin-bottom: 0.75rem;
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.mb-8 {
+  margin-bottom: 2rem;
 }
 
 .ml-2 {
@@ -611,12 +615,16 @@ dialog::backdrop {
   margin-top: 0.75rem;
 }
 
-.flex {
-  display: flex;
+.mt-4 {
+  margin-top: 1rem;
 }
 
-.grid {
-  display: grid;
+.mt-8 {
+  margin-top: 2rem;
+}
+
+.flex {
+  display: flex;
 }
 
 .hidden {
@@ -647,16 +655,16 @@ dialog::backdrop {
   width: 560px;
 }
 
+.w-\[800px\] {
+  width: 800px;
+}
+
 .w-full {
   width: 100%;
 }
 
 .resize-none {
   resize: none;
-}
-
-.grid-cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .flex-col {
@@ -683,8 +691,20 @@ dialog::backdrop {
   gap: 0.5rem;
 }
 
-.gap-3 {
-  gap: 0.75rem;
+.space-y-2 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0.5rem * var(--tw-space-y-reverse));
+}
+
+.space-y-3 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0.75rem * var(--tw-space-y-reverse));
+}
+
+.overflow-auto {
+  overflow: auto;
 }
 
 .rounded-2xl {
@@ -743,9 +763,18 @@ dialog::backdrop {
   padding: 1rem;
 }
 
+.p-5 {
+  padding: 1.25rem;
+}
+
 .px-2\.5 {
   padding-left: 0.625rem;
   padding-right: 0.625rem;
+}
+
+.px-3 {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
 }
 
 .py-1\.5 {
@@ -760,6 +789,10 @@ dialog::backdrop {
 
 .pb-2\.5 {
   padding-bottom: 0.625rem;
+}
+
+.pr-1 {
+  padding-right: 0.25rem;
 }
 
 .text-center {
@@ -787,6 +820,10 @@ dialog::backdrop {
 
 .font-bold {
   font-weight: 700;
+}
+
+.font-medium {
+  font-weight: 500;
 }
 
 .font-semibold {

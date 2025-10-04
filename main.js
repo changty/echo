@@ -22,31 +22,56 @@ let win;
 let tray;
 
 const CONFIG_PATH = path.join(process.cwd(), "config.json");
-let config = {
-  hotkey: "Ctrl+Space",
-  provider: "ollama",
-  openai: {
-    apiBase: "https://api.openai.com/v1",
-    apiKeyEnv: "OPENAI_API_KEY",
-    model: "gpt-4o-mini",
-  },
-  openaiCompatible: {
-    apiBase: "http://localhost:11434/v1",
-    apiKeyEnv: "OPENAI_COMPAT_KEY",
-    model: "gpt-4o-mini",
-  },
-  ollama: { host: "http://localhost:11434", model: "gemma3:27b" },
-};
+function defaultConfig() {
+  return {
+    hotkey: "Alt+Space",
+    targetLang: "",
+    defaultProviderId: "prov-openai",
+    providers: [
+      {
+        id: "prov-openai",
+        label: "OpenAI (prod)",
+        type: "openai",
+        apiBase: "https://api.openai.com/v1",
+        apiKeyEnv: "OPENAI_API_KEY",
+        model: "gpt-4o-mini",
+      },
+      {
+        id: "prov-compat",
+        label: "OpenAI-Compatible (local)",
+        type: "openaiCompatible",
+        apiBase: "http://localhost:11434/v1",
+        apiKeyEnv: "OPENAI_COMPAT_KEY",
+        model: "gpt-4o-mini",
+      },
+      {
+        id: "prov-ollama",
+        label: "Ollama (localhost)",
+        type: "ollama",
+        host: "http://localhost:11434",
+        model: "llama3.1:8b",
+      },
+    ],
+  };
+}
+
+let config = defaultConfig();
 if (fs.existsSync(CONFIG_PATH)) {
   try {
     config = { ...config, ...JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8")) };
   } catch {}
 }
 
+function saveConfig() {
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf8");
+  } catch {}
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 720,
-    height: 470,
+    height: 400,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -156,16 +181,57 @@ ipcMain.handle("config:set", (_e, next) => {
   return { ok: true, config };
 });
 
+// ----- IPC: providers CRUD -----
+ipcMain.handle("providers:list", () => ({
+  providers: config.providers,
+  defaultProviderId: config.defaultProviderId,
+}));
+
+ipcMain.handle("providers:setDefault", (_e, id) => {
+  if (!config.providers.find((p) => p.id === id))
+    return { ok: false, error: "Provider not found" };
+  config.defaultProviderId = id;
+  saveConfig();
+  return { ok: true };
+});
+
+ipcMain.handle("providers:save", (_e, prov) => {
+  const id = prov.id || "prov-" + Date.now().toString(36);
+  const normalized = {
+    id,
+    label: prov.label || "Provider",
+    type: prov.type, // 'openai' | 'openaiCompatible' | 'ollama'
+    apiBase: prov.apiBase,
+    apiKeyEnv: prov.apiKeyEnv,
+    host: prov.host,
+    model: prov.model,
+  };
+  const idx = config.providers.findIndex((p) => p.id === id);
+  if (idx >= 0)
+    config.providers[idx] = { ...config.providers[idx], ...normalized };
+  else config.providers.push(normalized);
+  saveConfig();
+  return { ok: true, provider: normalized };
+});
+
+ipcMain.handle("providers:delete", (_e, id) => {
+  const idx = config.providers.findIndex((p) => p.id === id);
+  if (idx < 0) return { ok: false, error: "Not found" };
+  config.providers.splice(idx, 1);
+  if (config.defaultProviderId === id) {
+    config.defaultProviderId = config.providers[0]?.id || null;
+  }
+  saveConfig();
+  return { ok: true };
+});
+
 ipcMain.handle("llm:run", async (_e, payload) => {
   const { action, inputText, imageData, providerConfig } = payload;
+  const providerId = providerConfig?.providerId || config.defaultProviderId;
+  const providerSpec =
+    config.providers.find((p) => p.id === providerId) || config.providers[0];
   const system = getSystemPrompt(action, { hasImage: !!imageData });
-  const response = await runLLM({
-    provider: providerConfig?.provider || config.provider,
-    config: { ...config, ...(providerConfig || {}) },
-    system,
-    inputText,
-    imageData,
-  });
+  const response = await runLLM({ providerSpec, system, inputText, imageData });
   return response;
 });
 
@@ -176,7 +242,7 @@ function getSystemPrompt(action, { hasImage } = { hasImage: false }) {
   const base = {
     proofread: `You are a meticulous copy editor. Fix grammar, punctuation, clarity, and tone while preserving meaning.${visionHint}`,
     translate_en: `Translate the user's text to natural, idiomatic English. Provide only the translation, no other explanations.${visionHint}`,
-    translate_to: `Translate the user's text into the target language.${visionHint}`,
+    translate_to: `Translate the user's text into the target language. Provide only the translation without any explanation.${visionHint}`,
     summarize: `Summarize the user's text concisely. Capture key points and any actionable items.${visionHint}`,
     rewrite_style: `Rewrite the user's text in the requested style. Honor the style faithfully while preserving meaning. USE THE ORIGINAL LANGUAGE!${visionHint}`,
   };

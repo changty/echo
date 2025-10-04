@@ -1,18 +1,38 @@
 {
   "hotkey": "Ctrl+Space",
-  "provider": "openai",
-  "openai": {
-    "apiBase": "https://api.openai.com/v1",
-    "apiKeyEnv": "OPENAI_API_KEY",
-    "model": "gpt-4o-mini"
-  },
-  "openaiCompatible": {
-    "apiBase": "http://localhost:11434/v1",
-    "apiKeyEnv": "OPENAI_COMPAT_KEY",
-    "model": "gpt-4o-mini"
-  },
-  "ollama": {
-    "host": "http://localhost:11434",
-    "model": "llama3.1:8b"
-  }
+  "targetLang": "Mongolian",
+  "defaultProviderId": "prov-ollama",
+  "providers": [
+    {
+      "id": "prov-openai",
+      "label": "OpenAI (prod)",
+      "type": "openai",
+      "apiBase": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "gpt-4o-mini"
+    },
+    {
+      "id": "prov-compat",
+      "label": "OpenAI-Compatible (local)",
+      "type": "openaiCompatible",
+      "apiBase": "http://localhost:11434/v1",
+      "apiKeyEnv": "OPENAI_COMPAT_KEY",
+      "model": "gpt-4o-mini"
+    },
+    {
+      "id": "prov-ollama",
+      "label": "Ollama (localhost)",
+      "type": "ollama",
+      "apiBase": "http://localhost:11434",
+      "model": "gemma3:27b"
+    },
+    {
+      "id": "prov-gemini",
+      "label": "Gemini (Google AI Studio)",
+      "type": "gemini",
+      "apiBase": "https://generativelanguage.googleapis.com",
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "model": "gemini-2.5-flash"
+    }
+  ]
 }
