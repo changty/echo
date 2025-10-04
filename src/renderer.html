@@ -11,23 +11,24 @@
     <!-- Tailwind output (built from tw.css) -->
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body class="h-full text-zinc-100">
+  <body class="text-zinc-100">
     <div
       id="shell"
-      class="w-full h-full backdrop-blur-2xl saturate-125 bg-zinc-900/85 rounded-2xl shadow-2xl p-3"
+      class="w-full backdrop-blur-2xl saturate-125 bg-zinc-900/85 rounded-2xl shadow-2xl p-3"
     >
       <div id="bar" class="flex justify-between items-center px-2.5 py-1.5">
         <span id="brand" class="font-bold tracking-wide opacity-90"
           >⌘ Echo</span
         >
         <div id="actions" class="flex items-center">
-          <button id="act-proof" title="Alt+1" class="btn ml-2">
+          <button id="act-ask" title="Mod+1" class="btn ml-2">Ask</button>
+          <button id="act-proof" title="Mod+2" class="btn ml-2">
             Proofread
           </button>
-          <button id="act-en" title="Alt+2" class="btn ml-2">To English</button>
-          <button id="act-to" title="Alt+3" class="btn ml-2">To…</button>
-          <button id="act-sum" title="Alt+4" class="btn ml-2">Summarize</button>
-          <button id="act-rewrite" title="Alt+5" class="btn ml-2">
+          <button id="act-en" title="Mod+3" class="btn ml-2">To English</button>
+          <button id="act-to" title="Mod+4" class="btn ml-2">To…</button>
+          <button id="act-sum" title="Mod+5" class="btn ml-2">Summarize</button>
+          <button id="act-rewrite" title="Mod+6" class="btn ml-2">
             Rewrite ✎
           </button>
           <button
@@ -46,24 +47,23 @@
           placeholder="Paste or type here…"
           class="w-full h-56 p-3.5 rounded-xl border border-white/10 bg-white/5 text-zinc-100 resize-none text-[15px] leading-6"
         ></textarea>
-        <div id="imagePreview" hidden class="mt-2.5 flex items-center gap-2">
-          <img
-            id="img"
-            alt="clipboard image"
-            class="h-12 rounded-lg border border-white/10"
-          />
-          <span class="hint text-xs text-zinc-400"
-            >Image attached from clipboard</span
-          >
+        <div id="imagePreview" hidden>
+          <div class="flex items-center mt-2.5 gap-2">
+            <img
+              id="img"
+              alt="clipboard image"
+              class="h-12 rounded-lg border border-white/10"
+            />
+            <span class="hint text-xs text-zinc-400"
+              >Image attached from clipboard</span
+            >
+          </div>
         </div>
         <div
           id="footer"
-          class="flex justify-between mt-2 text-xs text-zinc-400"
+          class="flex justify-between mt-2 text-xs text-zinc-400 justify-end"
         >
-          <span>
-            Hotkeys: Alt+1 Proofread · Alt+2 English · Alt+3 To… · Alt+4
-            Summarize · Alt+5 Rewrite <br />Ctrl/⌘+Enter Run · Esc Close
-          </span>
+          <span> Ctrl/⌘+Enter Run · Esc Close </span>
           <span id="provider"></span>
         </div>
       </div>

@@ -7,6 +7,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  screen,
   Tray,
 } from "electron";
 import fs from "fs";
@@ -71,7 +72,10 @@ function saveConfig() {
 function createWindow() {
   win = new BrowserWindow({
     width: 720,
-    height: 400,
+    height: 320,
+    minHeight: 320,
+    resizable: true,
+    useContentSize: true,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -181,6 +185,25 @@ ipcMain.handle("config:set", (_e, next) => {
   return { ok: true, config };
 });
 
+// IPC: resize to a given content height (we'll clamp between min and 90% of work area)
+ipcMain.handle("window:resizeTo", (_e, { height, width }) => {
+  if (!win) return { ok: false, error: "no window" };
+
+  const bounds = win.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  const maxH = Math.floor(display.workArea.height * 0.9);
+  const minH = 320;
+
+  const targetH = Math.max(
+    minH,
+    Math.min(Math.floor(height || bounds.height), maxH)
+  );
+  const targetW = Math.floor(width || bounds.width);
+
+  win.setContentSize(targetW, targetH); // because useContentSize: true
+  return { ok: true, size: { width: targetW, height: targetH } };
+});
+
 // ----- IPC: providers CRUD -----
 ipcMain.handle("providers:list", () => ({
   providers: config.providers,
@@ -240,6 +263,7 @@ function getSystemPrompt(action, { hasImage } = { hasImage: false }) {
     ? " If an image is provided, first transcribe the text in the image accurately, then perform the task. Return ONLY the final result."
     : "";
   const base = {
+    ask: `Give a brief answer or explanation to the given input${visionHint}`,
     proofread: `You are a meticulous copy editor. Fix grammar, punctuation, clarity, and tone while preserving meaning.${visionHint}`,
     translate_en: `Translate the user's text to natural, idiomatic English. Provide only the translation, no other explanations.${visionHint}`,
     translate_to: `Translate the user's text into the target language. Provide only the translation without any explanation.${visionHint}`,

@@ -619,10 +619,6 @@ dialog::backdrop {
   margin-top: 1rem;
 }
 
-.mt-8 {
-  margin-top: 2rem;
-}
-
 .flex {
   display: flex;
 }
@@ -637,10 +633,6 @@ dialog::backdrop {
 
 .h-56 {
   height: 14rem;
-}
-
-.h-full {
-  height: 100%;
 }
 
 .w-9 {
@@ -665,6 +657,10 @@ dialog::backdrop {
 
 .resize-none {
   resize: none;
+}
+
+.resize {
+  resize: both;
 }
 
 .flex-col {
@@ -949,13 +945,6 @@ body {
   line-height: 1.5;
 }
 
-#imagePreview {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 #imagePreview img {
   height: 48px;
   border-radius: 8px;
@@ -1121,13 +1110,6 @@ body {
   line-height: 1.5;
 }
 
-#imagePreview {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 #imagePreview img {
   height: 48px;
   border-radius: 8px;
@@ -1270,13 +1252,6 @@ body {
   resize: none;
   font-size: 15px;
   line-height: 1.5;
-}
-
-#imagePreview {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 #imagePreview img {

@@ -21,3 +21,8 @@ contextBridge.exposeInMainWorld("api", {
   // tiny ping for sanity
   ping: () => ipcRenderer.invoke("ping"),
 });
+
+contextBridge.exposeInMainWorld("winCtl", {
+  resizeTo: (height, width) =>
+    ipcRenderer.invoke("window:resizeTo", { height, width }),
+});

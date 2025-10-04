@@ -1,4 +1,5 @@
 const input = document.getElementById("input");
+const btnAsk = document.getElementById("act-ask");
 const btnProof = document.getElementById("act-proof");
 const btnEn = document.getElementById("act-en");
 const btnTo = document.getElementById("act-to");
@@ -41,6 +42,87 @@ document.getElementById("settingsClose")?.addEventListener("click", () => {
   settingsDlg.close();
 });
 
+document
+  .getElementById("settings")
+  ?.addEventListener("close", () => setTimeout(scheduleResize, 10));
+document
+  .getElementById("promptDlg")
+  ?.addEventListener("close", () => setTimeout(scheduleResize, 10));
+
+const shell = document.getElementById("shell");
+const bar = document.getElementById("bar");
+const content = document.getElementById("content");
+
+input.style.height = "auto";
+input.style.minHeight = "220px";
+// input.style.maxHeight = "70vh";
+
+function autoGrowTextarea() {
+  input.style.height = "auto";
+  input.style.height = `${input.scrollHeight}px`;
+}
+function desiredContentHeight() {
+  const pad = 12; // a little breathing room
+  // ensure textarea height is up-to-date before measuring
+  autoGrowTextarea();
+
+  const barH = bar?.offsetHeight || 0;
+  const textH = input.scrollHeight; // intrinsic height of the textarea
+  const imgH = imgWrap?.hidden ? 0 : imgWrap.offsetHeight || 0;
+  const footH = footer?.offsetHeight || 0;
+  const innerPad = 16; // #content vertical paddings (approx)
+  const extra = 50;
+  return Math.ceil(barH + textH + imgH + footH + innerPad + pad + extra);
+}
+
+let lastSent = 0;
+let t;
+
+function scheduleResize() {
+  clearTimeout(t);
+  t = setTimeout(() => {
+    const h = desiredContentHeight();
+    if (Math.abs(h - lastSent) < 2) return; // skip tiny jitter
+    window.winCtl?.resizeTo(h);
+    lastSent = h;
+  }, 50);
+}
+
+// Resize on input
+input.addEventListener("input", () => {
+  autoGrowTextarea();
+  scheduleResize();
+});
+
+// Resize when image appears/disappears
+const ro = new ResizeObserver(() => scheduleResize());
+ro.observe(content);
+ro.observe(input);
+ro.observe(imgWrap);
+// Call these whenever content might change:
+input.addEventListener("input", () => {
+  autoGrowTextarea();
+  scheduleResize();
+});
+
+// When the app opens with clipboard payload:
+function applyPayload(p) {
+  if (p.text) input.value = p.text;
+  imageData = p.imageData || null;
+  if (imageData) {
+    imgEl.src = imageData;
+    imgWrap.hidden = false;
+  } else {
+    imgEl.src = "";
+    imgWrap.hidden = true;
+  }
+  autoGrowTextarea();
+  // Wait a tick for layout, then resize
+  requestAnimationFrame(() => scheduleResize());
+  input.focus();
+  input.select();
+}
+
 let currentAction = "proofread";
 let imageData = null;
 let providerConfig = null;
@@ -51,9 +133,10 @@ function setAction(a) {
   highlight();
 }
 function highlight() {
-  for (const b of [btnProof, btnEn, btnTo, btnSum, btnRewrite])
+  for (const b of [btnAsk, btnProof, btnEn, btnTo, btnSum, btnRewrite])
     b.style.borderColor = "rgba(255,255,255,0.1)";
   const m = {
+    ask: btnAsk,
     proofread: btnProof,
     translate_en: btnEn,
     translate_to: btnTo,
@@ -63,19 +146,6 @@ function highlight() {
   m.style.borderColor = "var(--accent)";
 }
 
-function applyPayload(p) {
-  if (p.text) input.value = p.text;
-  imageData = p.imageData || null;
-  if (imageData) {
-    imgEl.src = imageData;
-    imgWrap.hidden = false;
-  } else {
-    imgWrap.hidden = true;
-  }
-  input.focus();
-  input.select();
-}
-
 window.api.onOpened((payload) => {
   applyPayload(payload);
 });
@@ -83,21 +153,24 @@ window.api.onOpened((payload) => {
 window.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
   if (e.key === "Escape") window.close();
-  if (e.altKey && e.key === "1") {
+  if (mod && e.key === "1") {
+    setAction("ask");
+  }
+  if (mod && e.key === "2") {
     setAction("proofread");
   }
-  if (e.altKey && e.key === "2") {
+  if (mod && e.key === "3") {
     setAction("translate_en");
   }
-  if (e.altKey && e.key === "3") {
+  if (mod && e.key === "4") {
     setAction("translate_to");
     askLanguage();
   }
-  if (e.altKey && e.key === "4") {
+  if (mod && e.key === "5") {
     setAction("summarize");
     run();
   }
-  if (e.altKey && e.key === "5") {
+  if (mod && e.key === "6") {
     setAction("rewrite_style");
     askStyle();
   }
@@ -106,6 +179,7 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
+btnAsk.onclick = () => setAction("ask");
 btnProof.onclick = () => setAction("proofread");
 btnEn.onclick = () => setAction("translate_en");
 btnTo.onclick = () => {
@@ -243,6 +317,8 @@ async function run() {
     }
     await window.api.writeClipboard(result.text);
     input.value = result.text;
+    autoGrowTextarea();
+    scheduleResize();
     flash("Copied to clipboard!");
   } catch (err) {
     console.error(err);

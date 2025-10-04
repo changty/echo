@@ -87,12 +87,7 @@ body {
   font-size: 15px;
   line-height: 1.5;
 }
-#imagePreview {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+
 #imagePreview img {
   height: 48px;
   border-radius: 8px;
@@ -234,12 +229,7 @@ body {
   font-size: 15px;
   line-height: 1.5;
 }
-#imagePreview {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+
 #imagePreview img {
   height: 48px;
   border-radius: 8px;
@@ -364,12 +354,7 @@ body {
   font-size: 15px;
   line-height: 1.5;
 }
-#imagePreview {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+
 #imagePreview img {
   height: 48px;
   border-radius: 8px;
