@@ -123,7 +123,7 @@ function applyPayload(p) {
   input.select();
 }
 
-let currentAction = "proofread";
+let currentAction = "ask";
 let imageData = null;
 let providerConfig = null;
 let rewriteStyle = null;
@@ -148,6 +148,7 @@ function highlight() {
 
 window.api.onOpened((payload) => {
   applyPayload(payload);
+  setAction(currentAction);
 });
 
 window.addEventListener("keydown", (e) => {
