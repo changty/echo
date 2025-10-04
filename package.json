@@ -1,0 +1,45 @@
+{
+  "name": "echo",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "tw:dev": "tailwindcss -i ./src/tw.css -o ./src/styles.css --watch",
+    "tw:build": "tailwindcss -i ./src/tw.css -o ./src/styles.css --minify"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "electron": "^31.4.0",
+    "electron-builder": "^24.13.3",
+    "tailwindcss": "^3.4.13",
+    "postcss": "^8.4.47",
+    "autoprefixer": "^10.4.20"
+  },
+  "build": {
+    "appId": "com.eduten.echo",
+    "productName": "Echo",
+    "files": [
+      "main.js",
+      "preload.cjs",
+      "config.json",
+      "src/**/*",
+      "providers/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

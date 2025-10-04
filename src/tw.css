@@ -1,0 +1,388 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  dialog::backdrop {
+    @apply bg-black/40;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 text-zinc-100 text-sm hover:border-accent/60 cursor-pointer;
+  }
+}
+
+/* Add any small custom rules here if needed */
+:root {
+  --bg: rgba(20, 20, 22, 0.85);
+  --fg: #e8e8ea;
+  --muted: #9b9ba1;
+  --accent: #8ab4ff;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;
+  color: var(--fg);
+}
+#shell {
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(20px) saturate(120%);
+  background: var(--bg);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  padding: 12px;
+}
+#bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+}
+#brand {
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  opacity: 0.9;
+}
+#actions button {
+  margin-left: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--fg);
+  cursor: pointer;
+}
+#actions button:hover {
+  border-color: var(--accent);
+}
+#actions button.icon {
+  width: 34px;
+  text-align: center;
+  padding: 6px 0;
+}
+#content {
+  padding: 8px 10px 10px;
+}
+#input {
+  width: 100%;
+  height: 220px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+  resize: none;
+  font-size: 15px;
+  line-height: 1.5;
+}
+#imagePreview {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#imagePreview img {
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+#imagePreview .hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+#footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Settings modal */
+dialog#settings {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(18, 18, 20, 0.95);
+  color: var(--fg);
+  border-radius: 14px;
+  padding: 16px;
+  width: 560px;
+}
+dialog h3 {
+  margin: 0 0 12px;
+}
+dialog .grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+dialog label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 6px;
+}
+dialog input,
+dialog select {
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--fg);
+}
+dialog menu {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.small {
+  font-size: 12px;
+}
+.muted {
+  color: var(--muted);
+}
+
+/* Tiny prompt modal */
+dialog#promptDlg {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(18, 18, 20, 0.95);
+  color: var(--fg);
+  border-radius: 14px;
+  padding: 16px;
+  width: 420px;
+}
+dialog#promptDlg input {
+  width: 100%;
+}
+:root {
+  --bg: rgba(20, 20, 22, 0.85);
+  --fg: #e8e8ea;
+  --muted: #9b9ba1;
+  --accent: #8ab4ff;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;
+  color: var(--fg);
+}
+#shell {
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(20px) saturate(120%);
+  background: var(--bg);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  padding: 12px;
+}
+#bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+}
+#brand {
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  opacity: 0.9;
+}
+#actions button {
+  margin-left: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--fg);
+  cursor: pointer;
+}
+#actions button:hover {
+  border-color: var(--accent);
+}
+#actions button.icon {
+  width: 34px;
+  text-align: center;
+  padding: 6px 0;
+}
+#content {
+  padding: 8px 10px 10px;
+}
+#input {
+  width: 100%;
+  height: 220px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+  resize: none;
+  font-size: 15px;
+  line-height: 1.5;
+}
+#imagePreview {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#imagePreview img {
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+#imagePreview .hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+#footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Settings modal */
+dialog#settings {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(18, 18, 20, 0.95);
+  color: var(--fg);
+  border-radius: 14px;
+  padding: 16px;
+  width: 560px;
+}
+dialog h3 {
+  margin: 0 0 12px;
+}
+dialog .grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+dialog label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 6px;
+}
+dialog input,
+dialog select {
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--fg);
+}
+dialog menu {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.small {
+  font-size: 12px;
+}
+.muted {
+  color: var(--muted);
+}
+
+:root {
+  --bg: rgba(20, 20, 22, 0.85);
+  --fg: #e8e8ea;
+  --muted: #9b9ba1;
+  --accent: #8ab4ff;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;
+  color: var(--fg);
+}
+#shell {
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(20px) saturate(120%);
+  background: var(--bg);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  padding: 12px;
+}
+#bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+}
+#brand {
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  opacity: 0.9;
+}
+#actions button {
+  margin-left: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--fg);
+  cursor: pointer;
+}
+#actions button:hover {
+  border-color: var(--accent);
+}
+#content {
+  padding: 8px 10px 10px;
+}
+#input {
+  width: 100%;
+  height: 220px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+  resize: none;
+  font-size: 15px;
+  line-height: 1.5;
+}
+#imagePreview {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#imagePreview img {
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+#imagePreview .hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+#footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}

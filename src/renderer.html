@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LLM Spotlight</title>
+    <!-- Tailwind output (built from tw.css) -->
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="h-full text-zinc-100">
+    <div
+      id="shell"
+      class="w-full h-full backdrop-blur-2xl saturate-125 bg-zinc-900/85 rounded-2xl shadow-2xl p-3"
+    >
+      <div id="bar" class="flex justify-between items-center px-2.5 py-1.5">
+        <span id="brand" class="font-bold tracking-wide opacity-90">⌘ LLM</span>
+        <div id="actions" class="flex items-center">
+          <button id="act-proof" title="Alt+1" class="btn ml-2">
+            Proofread
+          </button>
+          <button id="act-en" title="Alt+2" class="btn ml-2">To English</button>
+          <button id="act-to" title="Alt+3" class="btn ml-2">To…</button>
+          <button id="act-sum" title="Alt+4" class="btn ml-2">Summarize</button>
+          <button id="act-rewrite" title="Alt+5" class="btn ml-2">
+            Rewrite ✎
+          </button>
+          <button
+            id="btn-settings"
+            title="Settings"
+            class="btn ml-2 w-9 text-center p-1.5"
+          >
+            ⚙︎
+          </button>
+        </div>
+      </div>
+
+      <div id="content" class="px-2.5 pb-2.5">
+        <textarea
+          id="input"
+          placeholder="Paste or type here…"
+          class="w-full h-56 p-3.5 rounded-xl border border-white/10 bg-white/5 text-zinc-100 resize-none text-[15px] leading-6"
+        ></textarea>
+        <div id="imagePreview" hidden class="mt-2.5 flex items-center gap-2">
+          <img
+            id="img"
+            alt="clipboard image"
+            class="h-12 rounded-lg border border-white/10"
+          />
+          <span class="hint text-xs text-zinc-400"
+            >Image attached from clipboard</span
+          >
+        </div>
+        <div
+          id="footer"
+          class="flex justify-between mt-2 text-xs text-zinc-400"
+        >
+          <span
+            >Hotkeys: Alt+1 Proofread · Alt+2 English · Alt+3 To… · Alt+4
+            Summarize · Alt+5 Rewrite · Ctrl/⌘+Enter Run · Esc Close</span
+          >
+          <span id="provider"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <dialog
+      id="settings"
+      class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-4 w-[560px]"
+    >
+      <form method="dialog" id="settingsForm">
+        <h3 class="text-base font-semibold mb-3">Settings</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1.5 text-sm"
+            >Global Hotkey
+            <input
+              id="s-hotkey"
+              placeholder="Alt+Space"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+            />
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm"
+            >Provider
+            <select
+              id="s-provider"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+            >
+              <option value="openai">OpenAI</option>
+              <option value="openaiCompatible">OpenAI-Compatible</option>
+              <option value="ollama">Ollama (local)</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm"
+            >Model
+            <input
+              id="s-model"
+              placeholder="gpt-4o-mini / llama3.1:8b"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+            />
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm"
+            >API Base
+            <input
+              id="s-base"
+              placeholder="https://api.openai.com/v1 or http://localhost:11434/v1"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+            />
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm"
+            >Target language (default for Alt+3)
+            <input
+              id="s-targetLang"
+              placeholder="Finnish"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+            />
+          </label>
+        </div>
+        <menu class="flex justify-end gap-2 mt-3">
+          <button value="cancel" class="btn">Cancel</button>
+          <button id="saveSettings" value="default" class="btn">Save</button>
+        </menu>
+        <p class="text-xs text-zinc-400 mt-2">
+          API keys are read from your .env according to provider (e.g.,
+          OPENAI_API_KEY). Keys are not stored here.
+        </p>
+      </form>
+    </dialog>
+
+    <!-- Generic tiny prompt (replaces window.prompt) -->
+    <dialog
+      id="promptDlg"
+      class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-4 w-[420px]"
+    >
+      <form method="dialog" id="promptForm">
+        <h3 id="promptTitle" class="text-base font-semibold">Input</h3>
+        <p class="text-xs text-zinc-400" id="promptHelp"></p>
+        <input
+          id="promptInput"
+          placeholder=""
+          class="mt-2 w-full px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+        />
+        <menu class="flex justify-end gap-2 mt-3">
+          <button value="cancel" class="btn">Cancel</button>
+          <button id="promptOk" value="default" class="btn">OK</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script type="module" src="renderer.js"></script>
+  </body>
+</html>
