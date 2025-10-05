@@ -196,66 +196,87 @@ btnRewrite.onclick = () => {
 };
 btnSettings.onclick = async () => openSettings();
 
-async function askInput({ title, help, placeholder, initial = "" }) {
+async function askInput({ title, help, placeholder, initial, fallback }) {
+  const dlg = document.getElementById("promptDlg");
+  const input = document.getElementById("promptInput");
+  const titleEl = document.getElementById("promptTitle");
+  const helpEl = document.getElementById("promptHelp");
+
+  // Set up the dialog's content
+  titleEl.textContent = title ?? "Input";
+  helpEl.textContent = help ?? "";
+  input.placeholder = placeholder ?? "";
+  input.value = initial ?? "";
+
   return new Promise((resolve) => {
-    promptTitle.textContent = title;
-    promptHelp.textContent = help || "";
-    promptInput.placeholder = placeholder || "";
-    promptInput.value = initial || "";
-    const onClose = () => {
-      cleanup();
-      resolve(
-        promptDlg.returnValue === "default" ? promptInput.value.trim() : null
-      );
-    };
-    const onKey = (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        promptOk.click();
-      }
-    };
-    function cleanup() {
-      promptDlg.removeEventListener("close", onClose);
-      promptInput.removeEventListener("keydown", onKey);
-    }
-    promptDlg.addEventListener("close", onClose, { once: true });
-    promptInput.addEventListener("keydown", onKey);
-    promptDlg.showModal();
-    promptInput.focus();
-    promptInput.select();
+    dlg.addEventListener(
+      "close",
+      () => {
+        // If the 'Ok' button was clicked or Enter was pressed
+        if (dlg.returnValue === "ok") {
+          const raw = input.value.trim();
+          // Use the input, or the fallback, or the initial value, etc.
+          const val = raw || fallback || initial || placeholder || "";
+          resolve(val);
+        } else {
+          // The user cancelled (Cancel button or Escape key)
+          resolve(null);
+        }
+      },
+      { once: true }
+    );
+
+    dlg.showModal();
+    // A small delay ensures the dialog is painted before we focus/select
+    requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
   });
 }
 
 async function askLanguage() {
   const defLang = sTargetLang?.value || "";
+  const fallback = providerConfig.targetLang || "Mongolian";
+
   const lang = await askInput({
     title: "Translate to which language?",
     help: "e.g., Finnish",
-    placeholder: providerConfig.targetLang || "Mongolian",
+    placeholder: fallback,
     initial: defLang,
+    fallback,
   });
-  if (lang) {
-    providerConfig = { ...(providerConfig || {}), targetLang: lang };
-    await run();
-  } else {
-    // Default language
-    await run();
+
+  //If the user cancelled, do nothing.
+  if (lang === null) {
+    return;
   }
+
+  providerConfig = {
+    ...(providerConfig || {}),
+    targetLang: lang, // No need for the complex nullish coalescing here
+  };
+  await run();
 }
 
 async function askStyle() {
+  const current = rewriteStyle || "formal";
+
   const style = await askInput({
     title: "Rewrite in which style?",
     help: "e.g., formal, friendly, academic, marketing",
-    placeholder: "formal",
+    placeholder: current,
+    initial: rewriteStyle || "",
+    fallback: current,
   });
-  if (style) {
-    rewriteStyle = style;
-    await run();
-  } else {
-    rewriteStyle = "formal";
-    await run();
+
+  //If the user cancelled, do nothing.
+  if (style === null) {
+    return;
   }
+
+  rewriteStyle = String(style).trim().toLowerCase();
+  await run();
 }
 
 async function run() {
