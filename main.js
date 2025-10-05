@@ -17,13 +17,10 @@ import { fileURLToPath } from "url";
 import { runLLM } from "./providers/providerManager.js";
 
 const SERVICE = "com.eduten.echo";
-const OPENAI_API_KEY = "OPENAI_API_KEY";
-const GEMINI_API_KEY = "GEMINI_API_KEY";
-// dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+let blurIgnoreUntil = 0;
 let win;
 let tray;
 let CONFIG_PATH;
@@ -106,10 +103,12 @@ function createWindow() {
     frame: false,
     transparent: true,
     alwaysOnTop: true,
+    fullscreenable: false,
     show: false,
     vibrancy: "under-window",
     visualEffectState: "active",
     visibleOnAllWorkspaces: true,
+    fullscreenable: false,
     contextIsolation: true,
     webPreferences: {
       preload: resolveInApp("preload.cjs"),
@@ -134,8 +133,9 @@ function createWindow() {
   });
 
   win.on("blur", () => {
-    if (win.webContents.isDevToolsOpened()) return;
-    win.hide();
+    if (win?.webContents.isDevToolsOpened()) return;
+    if (Date.now() < blurIgnoreUntil) return; // ignore transient blur
+    win?.hide();
   });
 }
 
@@ -144,13 +144,31 @@ function isValidAccel(acc) {
   return typeof acc === "string" && acc.trim() !== "";
 }
 
+function showOnActiveSpace() {
+  if (!win) return;
+
+  const IGNORE_MS = 800; // a bit longer is safer
+  blurIgnoreUntil = Date.now() + IGNORE_MS;
+
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  win.setAlwaysOnTop(true, "screen-saver");
+  win.show();
+  win.focus();
+
+  // Flip back after the guard window so it doesn't trigger a hide.
+  //   setTimeout(() => {
+  //     blurIgnoreUntil = Date.now() + 200; // guard the flip itself
+  //     if (!win?.isDestroyed()) win.setVisibleOnAllWorkspaces(false);
+  //   }, IGNORE_MS);
+}
+
 function toggleWindow() {
   if (!win) return;
   if (win.isVisible()) {
     win.hide();
   } else {
     win.center();
-    win.show();
+    showOnActiveSpace();
     win.webContents.send("app:opened", readClipboardPayload());
   }
 }
