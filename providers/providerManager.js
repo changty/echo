@@ -3,11 +3,16 @@ import { runWithGemini } from "./gemini.js";
 import { runWithOllama } from "./ollama.js";
 import { runWithOpenAI } from "./openai.js";
 
-export async function runLLM({ providerSpec, system, inputText, imageData }) {
+export async function runLLM({
+  providerSpec,
+  apiKey,
+  system,
+  inputText,
+  imageData,
+}) {
   if (!providerSpec) return { error: "No provider configured" };
 
   if (providerSpec.type === "gemini") {
-    const apiKey = process.env[providerSpec.apiKeyEnv] || "";
     if (!apiKey)
       return { error: `Missing API key in env: ${providerSpec.apiKeyEnv}` };
     return await runWithGemini({
@@ -32,12 +37,13 @@ export async function runLLM({ providerSpec, system, inputText, imageData }) {
 
   // OpenAI or compatible endpoint
   const base = providerSpec.apiBase;
-  const key = process.env[providerSpec.apiKeyEnv] || "none";
   const model = providerSpec.model;
 
+  if (!apiKey)
+    return { error: `Missing API key in env: ${providerSpec.apiKeyEnv}` };
   return await runWithOpenAI({
     base,
-    apiKey: key,
+    apiKey,
     model,
     system,
     inputText,

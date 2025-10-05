@@ -28,10 +28,9 @@ const pModel = document.getElementById("p-model");
 const pLabel = document.getElementById("p-label");
 const pType = document.getElementById("p-type");
 const pApiBase = document.getElementById("p-apiBase");
-const pApiKeyEnv = document.getElementById("p-apiKeyEnv");
+const pApiKey = document.getElementById("p-apiKey");
 const pHost = document.getElementById("p-host");
 const pRowApiBase = document.getElementById("p-row-apiBase");
-const pRowApiKeyEnv = document.getElementById("p-row-apiKeyEnv");
 const pRowHost = document.getElementById("p-row-host");
 const providerSaveBtn = document.getElementById("providerSaveBtn");
 document.getElementById("providerCancelBtn")?.addEventListener("click", () => {
@@ -371,7 +370,6 @@ function showProviderRowsForType(type) {
   const isOllama = type === "ollama";
   pRowHost.classList.toggle("hidden", !isOllama);
   pRowApiBase.classList.toggle("hidden", isOllama);
-  pRowApiKeyEnv.classList.toggle("hidden", isOllama);
 }
 
 pType.addEventListener("change", () => showProviderRowsForType(pType.value));
@@ -439,7 +437,7 @@ function openProviderEditor(p = null) {
   pLabel.value = p?.label || "";
   pType.value = p?.type || "openai";
   pApiBase.value = p?.apiBase || "";
-  pApiKeyEnv.value = p?.apiKeyEnv || "";
+  pApiKey.value = "";
   pHost.value = p?.host || "";
   pModel.value = p?.model || "";
   showProviderRowsForType(pType.value);
@@ -453,7 +451,7 @@ providerForm?.addEventListener("submit", async (e) => {
     label: (pLabel.value || "").trim() || "Provider",
     type: pType.value,
     apiBase: (pApiBase.value || "").trim() || undefined,
-    apiKeyEnv: (pApiKeyEnv.value || "").trim() || undefined,
+    apiKey: (pApiKey.value || "").trim() || undefined,
     host: (pHost.value || "").trim() || undefined,
     model: (pModel.value || "").trim() || "",
   };
@@ -471,7 +469,7 @@ providerSaveBtn.addEventListener("click", async (e) => {
     label: pLabel.value.trim() || "Provider",
     type: pType.value,
     apiBase: pApiBase.value.trim() || undefined,
-    apiKeyEnv: pApiKeyEnv.value.trim() || undefined,
+    apiKey: (pApiKey.value || "").trim() || undefined,
     host: pHost.value.trim() || undefined,
     model: pModel.value.trim() || "",
   };

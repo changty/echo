@@ -13,14 +13,15 @@
     "tw:build": "tailwindcss -i ./src/tw.css -o ./src/styles.css --minify"
   },
   "dependencies": {
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "keytar": "^7.9.0"
   },
   "devDependencies": {
+    "autoprefixer": "^10.4.20",
     "electron": "^31.4.0",
     "electron-builder": "^24.13.3",
-    "tailwindcss": "^3.4.13",
     "postcss": "^8.4.47",
-    "autoprefixer": "^10.4.20"
+    "tailwindcss": "^3.4.13"
   },
   "build": {
     "appId": "com.eduten.echo",

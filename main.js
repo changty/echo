@@ -1,4 +1,3 @@
-import dotenv from "dotenv";
 import {
   app,
   BrowserWindow,
@@ -12,11 +11,15 @@ import {
   Tray,
 } from "electron";
 import fs from "fs";
+import keytar from "keytar";
 import path, { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { runLLM } from "./providers/providerManager.js";
 
-dotenv.config();
+const SERVICE = "com.eduten.echo";
+const OPENAI_API_KEY = "OPENAI_API_KEY";
+const GEMINI_API_KEY = "GEMINI_API_KEY";
+// dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,7 +44,6 @@ function defaultConfig() {
         label: "OpenAI (prod)",
         type: "openai",
         apiBase: "https://api.openai.com/v1",
-        apiKeyEnv: "OPENAI_API_KEY",
         model: "gpt-4o-mini",
       },
       {
@@ -49,7 +51,6 @@ function defaultConfig() {
         label: "OpenAI-Compatible (local)",
         type: "openaiCompatible",
         apiBase: "http://localhost:11434/v1",
-        apiKeyEnv: "OPENAI_COMPAT_KEY",
         model: "gpt-4o-mini",
       },
       {
@@ -64,7 +65,6 @@ function defaultConfig() {
         label: "Gemini (Google AI Studio)",
         type: "gemini",
         apiBase: "https://generativelanguage.googleapis.com",
-        apiKeyEnv: "GEMINI_API_KEY",
         model: "gemini-2.5-flash",
       },
     ],
@@ -109,6 +109,7 @@ function createWindow() {
     show: false,
     vibrancy: "under-window",
     visualEffectState: "active",
+    contextIsolation: true,
     webPreferences: {
       preload: resolveInApp("preload.cjs"),
       nodeIntegration: false,
@@ -258,6 +259,24 @@ app.on("will-quit", () => {
 });
 
 // ---------- IPC ----------
+
+ipcMain.handle("api:saveKey", async (_evt, apiKey, account) => {
+  await keytar.setPassword(SERVICE, account, apiKey);
+  return { ok: true };
+});
+
+ipcMain.handle("api:clearKey", async (account) => {
+  await keytar.deletePassword(SERVICE, account);
+  return { ok: true };
+});
+
+async function getApiKey(account) {
+  if (!account || account.length === 0) {
+    return "";
+  }
+  return keytar.getPassword(SERVICE, account);
+}
+
 ipcMain.handle("clipboard:read", () => readClipboardPayload());
 ipcMain.handle("clipboard:write", (_e, text) => {
   clipboard.writeText(text || "");
@@ -284,17 +303,24 @@ ipcMain.handle("providers:setDefault", (_e, id) => {
   saveConfig();
   return { ok: true };
 });
-ipcMain.handle("providers:save", (_e, prov) => {
+ipcMain.handle("providers:save", async (_e, prov) => {
   const id = prov.id || "prov-" + Date.now().toString(36);
   const normalized = {
     id,
     label: prov.label || "Provider",
     type: prov.type,
     apiBase: prov.apiBase,
-    apiKeyEnv: prov.apiKeyEnv,
     host: prov.host,
     model: prov.model,
   };
+
+  if (prov.apiKey && prov.apiKey.length > 10) {
+    const account = id;
+    await keytar.setPassword(SERVICE, account, prov.apiKey);
+    console.log("Saving apikey", SERVICE, account, prov.apiKey);
+    delete prov.apiKey;
+  }
+
   const idx = config.providers.findIndex((p) => p.id === id);
   if (idx >= 0)
     config.providers[idx] = { ...config.providers[idx], ...normalized };
@@ -345,7 +371,9 @@ ipcMain.handle("llm:run", async (_e, payload) => {
   const providerSpec =
     config.providers.find((p) => p.id === providerId) || config.providers[0];
   const system = getSystemPrompt(action, { hasImage: !!imageData });
-  return await runLLM({ providerSpec, system, inputText, imageData });
+  const apiKey = (await getApiKey(providerId)) || "";
+
+  return await runLLM({ providerSpec, apiKey, system, inputText, imageData });
 });
 
 function getSystemPrompt(action, { hasImage } = { hasImage: false }) {

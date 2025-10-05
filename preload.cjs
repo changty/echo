@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld("api", {
   getConfig: () => ipcRenderer.invoke("config:get"),
   setConfig: (next) => ipcRenderer.invoke("config:set", next),
 
+  // API-key:
+  saveKey: (key) => ipcRenderer.invoke("api:saveKey", key),
+  clearKey: () => ipcRenderer.invoke("api:clearKey"),
+
   // providers CRUD
   listProviders: () => ipcRenderer.invoke("providers:list"),
   saveProvider: (prov) => ipcRenderer.invoke("providers:save", prov),
