@@ -109,6 +109,7 @@ function createWindow() {
     show: false,
     vibrancy: "under-window",
     visualEffectState: "active",
+    visibleOnAllWorkspaces: true,
     contextIsolation: true,
     webPreferences: {
       preload: resolveInApp("preload.cjs"),
