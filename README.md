@@ -1,4 +1,6 @@
-# LLM Spotlight (Echo)
+# LLM "Spotlight" (Echo)
+
+<img width="773" height="393" alt="image" src="https://github.com/user-attachments/assets/12b55a39-5a83-43db-a762-54a559c70e59" />
 
 A Spotlight-style launcher for quick LLM actions. Cross-platform (macOS/Windows/Linux), built with **Electron + HTML/JS** and styled with **Tailwind**.
 
