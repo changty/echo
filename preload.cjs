@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("api", {
   readClipboard: () => ipcRenderer.invoke("clipboard:read"),
   writeClipboard: (text) => ipcRenderer.invoke("clipboard:write", text),
   runLLM: (payload) => ipcRenderer.invoke("llm:run", payload),
+  hideWindow: () => ipcRenderer.send("hide-window"),
 
   // config
   getConfig: () => ipcRenderer.invoke("config:get"),

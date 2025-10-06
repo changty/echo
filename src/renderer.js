@@ -152,7 +152,9 @@ window.api.onOpened((payload) => {
 
 window.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
-  if (e.key === "Escape") window.close();
+  if (e.key === "Escape") {
+    window.api.hideWindow();
+  }
   if (mod && e.key === "1") {
     setAction("ask");
   }

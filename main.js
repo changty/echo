@@ -120,18 +120,6 @@ function createWindow() {
   const htmlPath = resolveInApp("src", "renderer.html");
   win.loadFile(htmlPath);
 
-  // Debug visibility & logs
-  win.webContents.on("did-fail-load", (_e, code, desc, url) => {
-    console.error("[did-fail-load]", code, desc, url);
-  });
-  win.webContents.on("did-finish-load", () => {
-    console.log("[did-finish-load] OK:", htmlPath);
-    win.show();
-  });
-  win.webContents.on("console-message", (_e, level, message) => {
-    console.log("[renderer]", level, message);
-  });
-
   win.on("blur", () => {
     if (win?.webContents.isDevToolsOpened()) return;
     if (Date.now() < blurIgnoreUntil) return; // ignore transient blur
@@ -154,12 +142,6 @@ function showOnActiveSpace() {
   win.setAlwaysOnTop(true, "screen-saver");
   win.show();
   win.focus();
-
-  // Flip back after the guard window so it doesn't trigger a hide.
-  //   setTimeout(() => {
-  //     blurIgnoreUntil = Date.now() + 200; // guard the flip itself
-  //     if (!win?.isDestroyed()) win.setVisibleOnAllWorkspaces(false);
-  //   }, IGNORE_MS);
 }
 
 function toggleWindow() {
@@ -278,6 +260,11 @@ app.on("will-quit", () => {
 });
 
 // ---------- IPC ----------
+ipcMain.on("hide-window", () => {
+  if (win && win.isVisible()) {
+    win.hide();
+  }
+});
 
 ipcMain.handle("api:saveKey", async (_evt, apiKey, account) => {
   await keytar.setPassword(SERVICE, account, apiKey);
@@ -336,7 +323,6 @@ ipcMain.handle("providers:save", async (_e, prov) => {
   if (prov.apiKey && prov.apiKey.length > 10) {
     const account = id;
     await keytar.setPassword(SERVICE, account, prov.apiKey);
-    console.log("Saving apikey", SERVICE, account, prov.apiKey);
     delete prov.apiKey;
   }
 
