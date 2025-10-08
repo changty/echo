@@ -122,7 +122,7 @@ function applyPayload(p) {
   input.select();
 }
 
-let currentAction = "ask";
+let currentAction = "translate_en"; // default action
 let imageData = null;
 let providerConfig = null;
 let rewriteStyle = null;
@@ -157,12 +157,15 @@ window.addEventListener("keydown", (e) => {
   }
   if (mod && e.key === "1") {
     setAction("ask");
+    run();
   }
   if (mod && e.key === "2") {
     setAction("proofread");
+    run();
   }
   if (mod && e.key === "3") {
     setAction("translate_en");
+    run();
   }
   if (mod && e.key === "4") {
     setAction("translate_to");
