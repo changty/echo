@@ -95,7 +95,7 @@ function saveConfig() {
 // ---------- window ----------
 function createWindow() {
   win = new BrowserWindow({
-    width: 720,
+    width: 920,
     height: 320,
     minHeight: 320,
     resizable: true,
@@ -241,11 +241,6 @@ app.whenReady().then(() => {
   createWindow();
   registerHotkey();
   tray = createTray();
-
-  // Devtools toggle
-  globalShortcut.register("CommandOrControl+Alt+I", () => {
-    if (win) win.webContents.toggleDevTools();
-  });
 });
 
 app.on("activate", () => {
