@@ -629,9 +629,16 @@ ipcMain.handle("config:set", (_e, next) => {
 });
 
 // providers CRUD
+// Ollama and OpenAI-compatible gateways routinely need no key, so don't touch
+// the keychain for them — every read is a possible macOS authorization prompt.
+const NEEDS_KEY = new Set(["openai", "gemini"]);
+
 ipcMain.handle("providers:list", async () => ({
   providers: await Promise.all(
-    config.providers.map(async (p) => ({ ...p, hasKey: !!(await getSecret(p.id)) }))
+    config.providers.map(async (p) => ({
+      ...p,
+      hasKey: NEEDS_KEY.has(p.type) ? !!(await getSecret(p.id)) : false,
+    }))
   ),
   defaultProviderId: config.defaultProviderId,
 }));

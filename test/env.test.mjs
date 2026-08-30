@@ -46,6 +46,28 @@ app.whenReady().then(async () => {
     );
     await deleteSecret(acct);
 
+    // Prove the cache really shortcuts the backend: stash a value, remove it
+    // behind the cache's back, and confirm reads still succeed. Every backend
+    // read is a possible macOS keychain prompt, so this is the property that
+    // keeps Echo from asking for a password on every request.
+    const st0 = await secretsStatus();
+    await setSecret(acct, "cached-value");
+    await getSecret(acct); // warm
+    if (st0.backend === "keychain") {
+      const kt = (await import("keytar")).default;
+      await kt.deletePassword("com.eduten.echo", acct);
+    } else {
+      const fs2 = await import("fs");
+      const os2 = await import("path");
+      const f = os2.join(app.getPath("userData"), "secrets.json");
+      const j = JSON.parse(fs2.readFileSync(f, "utf8"));
+      delete j[acct];
+      fs2.writeFileSync(f, JSON.stringify(j));
+    }
+    ok("cached read does not hit the backend", (await getSecret(acct)) === "cached-value");
+    ok("refresh bypasses the cache", (await getSecret(acct, { refresh: true })) === "");
+    await deleteSecret(acct);
+
     const st = await secretsStatus();
     ok("secretsStatus reports a tier", !!st.label, st.label);
     ok("safeStorage probe does not throw", typeof safeStorage.isEncryptionAvailable() === "boolean");

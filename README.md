@@ -197,14 +197,116 @@ Artifacts land in `dist/`. Tailwind is rebuilt automatically by each script.
 | Linux AppImage / tar.gz | ✅ native |
 | Linux .deb / .rpm | needs `libxcrypt-compat` (`npm run dist:linux:packages`) |
 | macOS **.zip** (`.app` inside) | ✅ `electron-builder --mac zip --x64 --arm64` |
-| macOS **.dmg** | ❌ macOS only — `dmg-license` will not install elsewhere |
+| macOS **.dmg** | ❌ macOS only — `dmg-license` will not install elsewhere; see signing below |
 | Windows **.zip** | ✅ `electron-builder --win zip -c.win.signAndEditExecutable=false` |
 | Windows **NSIS installer** | needs `wine` |
 
-Nothing produced off-platform is code-signed. A macOS build made on Linux is
-unsigned, so Gatekeeper quarantines it — users must clear the attribute:
+### macOS code signing (no Apple Developer account)
 
-    xattr -cr /Applications/Echo.app
+Shipping a macOS app that opens with a double-click needs a **Developer ID**
+certificate from the paid Apple Developer Program, plus notarization. Without
+one you can still build and run Echo on your own machines — you just have to
+sign it *ad hoc* yourself.
+
+**Why the build complains.** electron-builder looks for a signing identity and
+fails when it finds none. Tell it not to bother, in `package.json`:
+
+    "mac": {
+      "identity": null
+    }
+
+It then logs `skipped macOS code signing` and produces an unsigned `.app`.
+
+**Why unsigned is not enough on Apple Silicon.** arm64 macOS refuses to execute
+code with no valid signature at all. Electron's own binaries arrive ad-hoc
+signed, but packaging rewrites `Info.plist`, renames the binary and injects the
+asar, which invalidates that signature. The result launches on Intel and dies on
+Apple Silicon with *"Echo is damaged and can't be opened"* — which is a broken
+signature, not a corrupted download.
+
+**Fix: ad-hoc sign it.** The `-` identity means "sign with no certificate". Run
+this on macOS, after building:
+
+    codesign --force --deep --sign - "dist/mac-arm64/Echo.app"    # Apple Silicon
+    codesign --force --deep --sign - "dist/mac/Echo.app"          # Intel
+
+    # confirm it took
+    codesign --verify --verbose=2 "dist/mac-arm64/Echo.app"
+
+`--deep` is deprecated for production signing, but it is the least fiddly way to
+cover Electron's nested helper apps and frameworks for local use.
+
+**Clear the quarantine flag.** Anything that arrives by download, AirDrop or a
+transferred `.zip` is tagged `com.apple.quarantine`, and Gatekeeper blocks it
+regardless of the ad-hoc signature. An app you built locally is not tagged, so
+this is only needed for copies moved between machines:
+
+    xattr -dr com.apple.quarantine /Applications/Echo.app
+
+If Gatekeeper still refuses, right-click the app → **Open** once, or allow it
+under System Settings → Privacy & Security.
+
+**Repeated keychain password prompts.** macOS decides whether to let an app read
+a keychain item by matching the app against the item's ACL — and it identifies
+the app by its *code signature*. An unsigned build has nothing to match, and an
+**ad-hoc signature is not stable**: `codesign --sign -` mints a fresh identity on
+every build, so even clicking **Always Allow** will not survive your next
+rebuild. macOS therefore asks again.
+
+Echo caches each key in memory for the lifetime of the process, so at worst you
+are asked once per provider per launch, never once per request. To stop the
+prompts entirely, sign with a **stable self-signed certificate** instead of
+ad-hoc:
+
+1. Keychain Access → *Certificate Assistant* → **Create a Certificate…**
+2. Name it e.g. `Echo Self Signed`, Identity Type **Self Signed Root**,
+   Certificate Type **Code Signing**.
+3. Sign with it, using that name in place of `-`:
+
+        codesign --force --deep --sign "Echo Self Signed" "dist/mac-arm64/Echo.app"
+
+Because that identity is stable across rebuilds, **Always Allow** sticks and the
+prompts stop. Use the same name in the `afterPack` hook above.
+
+**What this does not give you.** An ad-hoc signature is trusted only where you
+choose to trust it. Anyone else you hand the app to sees the same warnings, so
+this is fine for your own machines and not a distribution strategy. It is also
+unrelated to the *Accessibility* permission that auto-paste needs — macOS ties
+that grant to the signature, so re-signing can make the system treat Echo as a
+new app and ask again.
+
+**If you build a `.dmg`, sign during the build, not after.** `npm run dist:mac`
+seals the `.app` inside the disk image, so hand-signing afterwards is too late —
+the copy users drag out stays broken. electron-builder's `afterPack` hook runs
+once the bundle exists but before the `.dmg` is assembled, which is the right
+moment. Save this as `build/adhoc-sign.cjs`:
+
+    // Ad-hoc sign the .app so it runs on Apple Silicon without a
+    // Developer ID. No-op anywhere except macOS builds.
+    const { execFileSync } = require("child_process");
+    const path = require("path");
+
+    exports.default = async function adhocSign(context) {
+      if (context.electronPlatformName !== "darwin") return;
+      if (process.platform !== "darwin") return; // codesign only exists on macOS
+      const app = path.join(
+        context.appOutDir,
+        `${context.packager.appInfo.productFilename}.app`
+      );
+      execFileSync("codesign", ["--force", "--deep", "--sign", "-", app], {
+        stdio: "inherit",
+      });
+    };
+
+and point `build.afterPack` at it in `package.json`:
+
+    "build": {
+      "afterPack": "build/adhoc-sign.cjs",
+      "mac": { "identity": null }
+    }
+
+Builds produced on Linux are never signed at all, so they always need the
+`codesign` step above before they will run on Apple Silicon.
 
 ---
 
@@ -256,6 +358,15 @@ unsigned, so Gatekeeper quarantines it — users must clear the attribute:
     bind your compositor to `echo-llm --toggle`.
   - Otherwise another app may own the combination; pick a different one in
     **Settings** (⚙︎).
+
+- **macOS asks for the keychain password repeatedly**
+
+  - Expected for unsigned or ad-hoc-signed builds: the keychain ACL identifies
+    apps by code signature, and an ad-hoc one changes every build. Sign with a
+    stable self-signed certificate — see
+    [macOS code signing](#macos-code-signing-no-apple-developer-account).
+  - Echo caches keys per process, so this is at most once per provider per
+    launch. If you are asked on *every* request, you are running an old build.
 
 - **Ollama not responding**
   - Verify `ollama serve` is running and the model is pulled:

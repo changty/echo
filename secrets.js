@@ -18,6 +18,16 @@ import { app, safeStorage } from "electron";
 
 const SERVICE = "com.eduten.echo";
 
+// Read-through cache, keyed by account, for the lifetime of the process.
+//
+// Every keychain read is a potential authorization prompt. macOS grants silent
+// access based on the app's code signature, so an unsigned or ad-hoc-signed
+// build — which is what you get without a paid Developer ID — cannot be matched
+// against the keychain item's ACL and macOS asks again on every single read.
+// Without this cache that meant a password prompt per request, and one per
+// provider every time Settings opened.
+const cache = new Map();
+
 let keytar = null;
 let keytarUsable = null; // null = untested
 let backend = "unknown";
@@ -75,6 +85,7 @@ export async function setSecret(account, value) {
     try {
       await keytar.setPassword(SERVICE, account, value);
       backend = "keychain";
+      cache.set(account, value);
       return { ok: true, backend };
     } catch (e) {
       console.warn("[secrets] keytar write failed, falling back:", e?.message || e);
@@ -90,11 +101,11 @@ export async function setSecret(account, value) {
     backend = "plaintext";
   }
   writeStore(store);
+  cache.set(account, value);
   return { ok: true, backend };
 }
 
-export async function getSecret(account) {
-  if (!account) return "";
+async function readSecret(account) {
   if (await loadKeytar()) {
     try {
       const v = await keytar.getPassword(SERVICE, account);
@@ -118,6 +129,22 @@ export async function getSecret(account) {
   return "";
 }
 
+// `refresh` forces past the cache, for the rare case where the key was changed
+// outside Echo.
+export async function getSecret(account, { refresh = false } = {}) {
+  if (!account) return "";
+  if (!refresh && cache.has(account)) return cache.get(account);
+  const value = await readSecret(account);
+  cache.set(account, value);
+  return value;
+}
+
+// Drop cached secrets, e.g. to re-prompt after the keychain was changed.
+export function clearSecretCache(account) {
+  if (account) cache.delete(account);
+  else cache.clear();
+}
+
 export async function deleteSecret(account) {
   if (!account) return { ok: false, error: "No account given" };
   if (await loadKeytar()) {
@@ -132,6 +159,7 @@ export async function deleteSecret(account) {
     delete store[account];
     writeStore(store);
   }
+  cache.set(account, "");
   return { ok: true };
 }
 
