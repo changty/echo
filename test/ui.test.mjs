@@ -29,6 +29,7 @@ ipcMain.handle("providers:save", () => ({ ok: true }));
 ipcMain.handle("providers:delete", () => ({ ok: true }));
 ipcMain.handle("providers:setDefault", () => ({ ok: true }));
 ipcMain.handle("window:resizeTo", () => ({ ok: true }));
+ipcMain.handle("window:modal", () => ({ ok: true }));
 ipcMain.on("hide-window", () => {});
 ipcMain.on("llm:cancel", () => {});
 ipcMain.handle("llm:run", async (_e, p) => {

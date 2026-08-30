@@ -37,4 +37,7 @@ contextBridge.exposeInMainWorld("api", {
 contextBridge.exposeInMainWorld("winCtl", {
   resizeTo: (height, width) =>
     ipcRenderer.invoke("window:resizeTo", { height, width }),
+
+  // Grow the window while a full-size panel (settings) is open, restore after.
+  modal: (open) => ipcRenderer.invoke("window:modal", { open }),
 });

@@ -691,6 +691,18 @@ ipcMain.handle("providers:delete", async (_e, id) => {
   return { ok: true };
 });
 
+// Wayland hands back meaningless window coordinates, so anything keyed off the
+// window's own position is untrustworthy there — go by the pointer instead.
+function displayForWindow(bounds) {
+  try {
+    return IS_WAYLAND
+      ? screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+      : screen.getDisplayMatching(bounds);
+  } catch {
+    return screen.getPrimaryDisplay();
+  }
+}
+
 ipcMain.handle("window:resizeTo", (_e, { height, width, margin = 80 }) => {
   if (!win || win.isDestroyed()) return { ok: false, error: "no window" };
 
@@ -699,17 +711,7 @@ ipcMain.handle("window:resizeTo", (_e, { height, width, margin = 80 }) => {
   const chrome = bounds.height - ch; // titlebar etc. (frameless → ~0)
   const minH = 320;
 
-  // Wayland hands back meaningless window coordinates, so the "keep the bottom
-  // edge on screen" math cannot be trusted there — fall back to a work-area cap.
-  let disp;
-  try {
-    disp = IS_WAYLAND
-      ? screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-      : screen.getDisplayMatching(bounds);
-  } catch {
-    disp = screen.getPrimaryDisplay();
-  }
-  const wa = disp.workArea;
+  const wa = displayForWindow(bounds).workArea;
 
   const maxByWork = Math.floor(wa.height * 0.95);
   const maxByBottom = IS_WAYLAND
@@ -721,6 +723,52 @@ ipcMain.handle("window:resizeTo", (_e, { height, width, margin = 80 }) => {
   const targetW = Math.floor(width || bounds.width);
 
   win.setContentSize(targetW, targetH);
+  return { ok: true, size: { width: targetW, height: targetH } };
+});
+
+// Settings lives in a <dialog>, so it can never be taller than the window
+// hosting it — on the launcher's ~320px frame that clipped it to a slit. Blow
+// the window up to most of the work area while a panel is open, and put the
+// old geometry back when it closes.
+let preModalBounds = null;
+
+ipcMain.handle("window:modal", (_e, { open } = {}) => {
+  if (!win || win.isDestroyed()) return { ok: false, error: "no window" };
+
+  if (!open) {
+    const prev = preModalBounds;
+    preModalBounds = null;
+    if (prev) {
+      win.setContentSize(prev.width, prev.height);
+      if (!IS_WAYLAND) {
+        try {
+          win.setPosition(prev.x, prev.y);
+        } catch {}
+      }
+    }
+    return { ok: true };
+  }
+
+  const bounds = win.getBounds();
+  const [cw, ch] = win.getContentSize();
+  if (!preModalBounds) {
+    preModalBounds = { width: cw, height: ch, x: bounds.x, y: bounds.y };
+  }
+
+  const chrome = bounds.height - ch; // frameless → ~0
+  const wa = displayForWindow(bounds).workArea;
+  const targetW = Math.max(cw, Math.min(960, Math.floor(wa.width * 0.9)));
+  const targetH = Math.max(320, Math.floor(wa.height * 0.9) - chrome);
+
+  win.setContentSize(targetW, targetH);
+  if (!IS_WAYLAND) {
+    try {
+      win.setPosition(
+        Math.round(wa.x + (wa.width - targetW) / 2),
+        Math.round(wa.y + (wa.height - (targetH + chrome)) / 2)
+      );
+    } catch {}
+  }
   return { ok: true, size: { width: targetW, height: targetH } };
 });
 

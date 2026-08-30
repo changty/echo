@@ -371,3 +371,63 @@ body {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ---------------------------------------------------------------------------
+   Overrides for the legacy raw CSS above. Keep these last.
+   --------------------------------------------------------------------------- */
+
+/* No document scrollbar, ever.
+   The window is resized to fit its content (see desiredContentHeight() in
+   renderer.js), so a scrollbar on <body> never buys anything — but on Linux
+   sub-pixel rounding between the requested DIP size and the physical window
+   leaves the viewport a hair short, and Chromium parks a permanent classic
+   scrollbar there. macOS hides it because its scrollbars are overlays. Let
+   #content do the scrolling instead, for the rare case where the window has
+   hit its work-area cap and genuinely cannot grow any further. */
+html,
+body {
+  overflow: hidden;
+}
+#shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Thin, dark scrollbars for the panes that legitimately scroll. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+  background-clip: content-box;
+}
+
+/* The legacy block above pins this at 560px, which beats the w-[800px] class
+   on specificity. Settings has outgrown that. */
+dialog#settings {
+  width: min(860px, 92vw);
+  max-height: 92vh;
+  padding: 20px;
+}

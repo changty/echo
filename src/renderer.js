@@ -107,9 +107,16 @@ function desiredContentHeight() {
 
 let lastSent = 0;
 let resizeTimer;
+
+// While settings is open the window is deliberately oversized (see
+// winCtl.modal), so content-driven autosizing has to stand down or it would
+// immediately shrink the window back around the launcher.
+let modalOpen = false;
+
 function scheduleResize() {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
+    if (modalOpen) return;
     const h = desiredContentHeight();
     if (Math.abs(h - lastSent) < 2) return;
     window.winCtl?.resizeTo(h);
@@ -537,10 +544,16 @@ palette.addEventListener("close", () => setTimeout(scheduleResize, 10));
 $("btn-settings").onclick = () => openSettings();
 $("onboard-open").onclick = () => openSettings();
 $("settingsClose")?.addEventListener("click", () => settingsDlg.close());
-settingsDlg.addEventListener("close", () => setTimeout(scheduleResize, 10));
+settingsDlg.addEventListener("close", async () => {
+  modalOpen = false;
+  await window.winCtl?.modal(false);
+  lastSent = 0; // the window moved under us; don't skip the next resize
+  setTimeout(scheduleResize, 10);
+});
 $("promptDlg").addEventListener("close", () => setTimeout(scheduleResize, 10));
 
 async function openSettings() {
+  if (settingsDlg.open) return; // showModal() throws on an already-open dialog
   cfg = await window.api.getConfig();
   appInfo = await window.api.getInfo();
 
@@ -577,6 +590,10 @@ async function openSettings() {
 
   renderActionList();
   await refreshProvidersUI();
+
+  // A <dialog> is clipped to its host window, so make room before showing it.
+  modalOpen = true;
+  await window.winCtl?.modal(true);
   settingsDlg.showModal();
 }
 
