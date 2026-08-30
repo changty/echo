@@ -879,6 +879,14 @@ async function refreshPlatformBanner() {
   } else if (!appInfo.hotkeyRegistered) {
     msg =
       "Echo couldn't register a global hotkey — another app probably owns it. Pick a different one in Settings, or launch with <code>echo-llm --toggle</code>.";
+  } else if (
+    appInfo.configuredHotkey &&
+    appInfo.hotkey &&
+    appInfo.configuredHotkey !== appInfo.hotkey
+  ) {
+    msg = `<code>${escapeHtml(appInfo.configuredHotkey)}</code> was taken, so Echo grabbed <code>${escapeHtml(
+      appInfo.hotkey
+    )}</code> for this session instead.`;
   } else if (appInfo.isWayland) {
     msg = `Hotkey <code>${escapeHtml(
       appInfo.hotkey

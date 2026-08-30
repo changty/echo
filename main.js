@@ -454,10 +454,10 @@ function registerHotkey() {
       }
     }
 
-    if (activeHotkey) {
-      config.hotkey = activeHotkey;
-      saveConfig();
-    }
+    // Deliberately do NOT persist the fallback. Registration failure is the
+    // norm on Wayland, where the compositor owns the hotkey; overwriting the
+    // user's chosen accelerator there would silently churn their config.
+    // activeHotkey reflects this session; config.hotkey stays their choice.
   } catch (e) {
     console.error("registerHotkey error", e);
   }
@@ -590,6 +590,7 @@ ipcMain.handle("app:info", async () => ({
   isLinux: IS_LINUX,
   isMac: IS_MAC,
   hotkey: activeHotkey,
+  configuredHotkey: config.hotkey,
   hotkeyRegistered: !!activeHotkey,
   configPath: CONFIG_PATH,
   wmClass: WM_CLASS,
