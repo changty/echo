@@ -1,112 +1,419 @@
-const input = document.getElementById("input");
-const btnAsk = document.getElementById("act-ask");
-const btnProof = document.getElementById("act-proof");
-const btnEn = document.getElementById("act-en");
-const btnTo = document.getElementById("act-to");
-const btnSum = document.getElementById("act-sum");
-const btnRewrite = document.getElementById("act-rewrite");
-const btnSettings = document.getElementById("btn-settings");
-const imgWrap = document.getElementById("imagePreview");
-const imgEl = document.getElementById("img");
-const providerEl = document.getElementById("provider");
-const settingsDlg = document.getElementById("settings");
-const sHotkey = document.getElementById("s-hotkey");
-const sProvider = document.getElementById("s-provider");
-const sModel = document.getElementById("s-model");
-const sBase = document.getElementById("s-base");
-const sTargetLang = document.getElementById("s-targetLang");
-const saveBtn = document.getElementById("saveSettings");
+// ---------- element refs ----------
+const $ = (id) => document.getElementById(id);
 
-const sDefaultProvider = document.getElementById("s-defaultProvider");
-const provList = document.getElementById("prov-list");
-const btnAddProvider = document.getElementById("btn-add-provider");
+const input = $("input");
+const actionsBar = $("actions");
+const imgWrap = $("imagePreview");
+const imgEl = $("img");
+const providerEl = $("provider");
+const footer = $("footer");
+const bar = $("bar");
+const content = $("content");
 
-const providerDlg = document.getElementById("providerDlg");
-const providerForm = document.getElementById("providerForm");
-const pId = document.getElementById("p-id");
-const pModel = document.getElementById("p-model");
-const pLabel = document.getElementById("p-label");
-const pType = document.getElementById("p-type");
-const pApiBase = document.getElementById("p-apiBase");
-const pApiKey = document.getElementById("p-apiKey");
-const pHost = document.getElementById("p-host");
-const pRowApiBase = document.getElementById("p-row-apiBase");
-const pRowHost = document.getElementById("p-row-host");
-const providerSaveBtn = document.getElementById("providerSaveBtn");
-document.getElementById("providerCancelBtn")?.addEventListener("click", () => {
-  providerDlg.close();
-});
+const banner = $("platform-banner");
+const bannerText = $("banner-text");
+const onboarding = $("onboarding");
+const errorBox = $("error");
+const errorText = $("error-text");
 
-document.getElementById("settingsClose")?.addEventListener("click", () => {
-  settingsDlg.close();
-});
+const viewbar = $("viewbar");
+const viewOriginalBtn = $("view-original");
+const viewResultBtn = $("view-result");
+const runStatus = $("run-status");
+const btnCancel = $("btn-cancel");
+const btnRetry = $("btn-retry");
+const btnCopy = $("btn-copy");
+const btnPaste = $("btn-paste");
 
-document
-  .getElementById("settings")
-  ?.addEventListener("close", () => setTimeout(scheduleResize, 10));
-document
-  .getElementById("promptDlg")
-  ?.addEventListener("close", () => setTimeout(scheduleResize, 10));
+const settingsDlg = $("settings");
+const sHotkey = $("s-hotkey");
+const sTargetLang = $("s-targetLang");
+const sHideOnBlur = $("s-hideOnBlur");
+const sHideDock = $("s-hideDock");
+const sDockRow = $("s-dock-row");
+const sAutoPaste = $("s-autoPaste");
+const sAutoPasteCmd = $("s-autoPasteCmd");
+const sAutoPasteStatus = $("s-autoPaste-status");
+const sOzone = $("s-ozone");
+const sPortal = $("s-portal");
+const sOpaque = $("s-opaque");
+const sLinux = $("s-linux");
+const sLinuxHint = $("s-linux-hint");
+const sSecrets = $("s-secrets");
+const sDefaultProvider = $("s-defaultProvider");
+const provList = $("prov-list");
+const actionList = $("action-list");
 
-const shell = document.getElementById("shell");
-const bar = document.getElementById("bar");
-const content = document.getElementById("content");
+const palette = $("palette");
+const paletteInput = $("palette-input");
+const paletteList = $("palette-list");
 
+const actionDlg = $("actionDlg");
+const providerDlg = $("providerDlg");
+
+// ---------- state ----------
+let cfg = null;
+let actions = [];
+let appInfo = null;
+
+let currentActionId = null;
+let imageData = null;
+let providerConfig = null;
+
+let originalText = ""; // text as it was when the run started
+let resultText = "";
+let view = "original"; // "original" | "result"
+let hasResult = false;
+
+let running = false;
+let runSeq = 0;
+let activeRunId = null;
+let lastRun = null; // { actionId, values } — for Retry
+
+// Answers to action follow-up questions, keyed by action id.
+const answers = {};
+
+// ---------- layout ----------
 input.style.height = "auto";
 input.style.minHeight = "220px";
-// input.style.maxHeight = "100%";
 
 function autoGrowTextarea() {
   input.style.height = "auto";
   input.style.height = `${input.scrollHeight}px`;
 }
-function desiredContentHeight() {
-  const pad = 12; // a little breathing room
-  // ensure textarea height is up-to-date before measuring
-  autoGrowTextarea();
 
-  const barH = bar?.offsetHeight || 0;
-  const textH = input.scrollHeight; // intrinsic height of the textarea
-  const imgH = imgWrap?.hidden ? 0 : imgWrap.offsetHeight || 0;
-  const footH = footer?.offsetHeight || 0;
-  const innerPad = 16; // #content vertical paddings (approx)
+function visibleHeight(el) {
+  return el && !el.hidden ? el.offsetHeight || 0 : 0;
+}
+
+function desiredContentHeight() {
+  autoGrowTextarea();
+  const innerPad = 16;
   const extra = 50;
-  return Math.ceil(barH + textH + imgH + footH + innerPad + pad + extra);
+  return Math.ceil(
+    (bar?.offsetHeight || 0) +
+      input.scrollHeight +
+      visibleHeight(imgWrap) +
+      visibleHeight(banner) +
+      visibleHeight(onboarding) +
+      visibleHeight(errorBox) +
+      visibleHeight(viewbar) +
+      (footer?.offsetHeight || 0) +
+      innerPad +
+      extra +
+      12
+  );
 }
 
 let lastSent = 0;
-let t;
-
+let resizeTimer;
 function scheduleResize() {
-  clearTimeout(t);
-  t = setTimeout(() => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
     const h = desiredContentHeight();
-    if (Math.abs(h - lastSent) < 2) return; // skip tiny jitter
+    if (Math.abs(h - lastSent) < 2) return;
     window.winCtl?.resizeTo(h);
     lastSent = h;
   }, 50);
 }
 
-// Resize on input
 input.addEventListener("input", () => {
+  // Editing the box edits whichever version is on screen.
+  if (view === "result") resultText = input.value;
+  else originalText = input.value;
   autoGrowTextarea();
   scheduleResize();
 });
 
-// Resize when image appears/disappears
 const ro = new ResizeObserver(() => scheduleResize());
 ro.observe(content);
 ro.observe(input);
 ro.observe(imgWrap);
-// Call these whenever content might change:
-input.addEventListener("input", () => {
-  autoGrowTextarea();
+
+// ---------- small UI helpers ----------
+function showError(msg) {
+  errorText.textContent = msg;
+  errorBox.hidden = false;
   scheduleResize();
+}
+function clearError() {
+  errorBox.hidden = true;
+  scheduleResize();
+}
+$("error-dismiss").onclick = clearError;
+
+function flash(msg) {
+  const el = document.createElement("div");
+  el.textContent = msg;
+  el.className =
+    "fixed bottom-4 right-4 px-2.5 py-2 bg-black/50 rounded-xl text-xs border border-white/10";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
+
+// ---------- actions ----------
+function actionById(id) {
+  return actions.find((a) => a.id === id);
+}
+
+function renderActionButtons() {
+  actionsBar.innerHTML = "";
+  actions.forEach((a, i) => {
+    const b = document.createElement("button");
+    b.className = "btn";
+    b.type = "button";
+    b.dataset.actionId = a.id;
+    const num = i < 9 ? `<span class="text-xs text-zinc-100 text-opacity-40"> (${i + 1})</span>` : "";
+    b.innerHTML = `${escapeHtml(a.label)}${num}`;
+    b.title = i < 9 ? `Mod+${i + 1}` : a.label;
+    b.onclick = () => runAction(a.id);
+    actionsBar.appendChild(b);
+  });
+  highlight();
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
+}
+
+function highlight() {
+  for (const b of actionsBar.querySelectorAll("button")) {
+    b.style.borderColor =
+      b.dataset.actionId === currentActionId
+        ? "var(--accent)"
+        : "rgba(255,255,255,0.1)";
+  }
+}
+
+// ---------- generic prompt ----------
+function askInput({ title, help, placeholder, initial }) {
+  const dlg = $("promptDlg");
+  const el = $("promptInput");
+  const okBtn = $("promptOk");
+  const cancelBtn = $("promptCancel");
+  $("promptTitle").textContent = title ?? "Input";
+  $("promptHelp").textContent = help ?? "";
+  el.placeholder = placeholder ?? "";
+  el.value = initial ?? "";
+
+  // Resolve from the buttons rather than the dialog's `close` event. The event
+  // is the tidier hook, but if it is ever missed the promise never settles and
+  // the action hangs forever with no feedback. `close` stays wired as a
+  // fallback for closes we did not initiate.
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      dlg.removeEventListener("cancel", onCancel);
+      dlg.removeEventListener("close", onClose);
+      try {
+        if (dlg.open) dlg.close();
+      } catch {}
+      scheduleResize();
+      resolve(value);
+    };
+
+    const answer = () => el.value.trim() || placeholder || "";
+    const onOk = (e) => {
+      e.preventDefault(); // we close it ourselves in finish()
+      finish(answer());
+    };
+    const onCancel = (e) => {
+      e?.preventDefault?.();
+      finish(null);
+    };
+    const onClose = () => finish(dlg.returnValue === "ok" ? answer() : null);
+
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    dlg.addEventListener("cancel", onCancel); // Escape
+    dlg.addEventListener("close", onClose);
+
+    dlg.showModal();
+    // rAF never fires in a window that is not producing frames, so focus on a
+    // plain task instead.
+    setTimeout(() => {
+      el.focus();
+      el.select();
+    }, 0);
+  });
+}
+
+// ---------- running ----------
+async function runAction(actionId, { reuseAnswer = false } = {}) {
+  const action = actionById(actionId);
+  if (!action) return showError(`Unknown action: ${actionId}`);
+
+  currentActionId = actionId;
+  highlight();
+
+  // Follow-up question, if this action declares one.
+  if (action.input) {
+    const seeded =
+      answers[actionId] ??
+      (action.input.fromConfig ? cfg?.[action.input.fromConfig] : "") ??
+      action.input.default ??
+      "";
+    if (!reuseAnswer || !answers[actionId]) {
+      const val = await askInput({
+        title: action.input.title || "Input",
+        help: action.input.help || "",
+        placeholder: seeded || action.input.default || "",
+        initial: answers[actionId] || seeded || "",
+      });
+      if (val === null) return; // user cancelled
+      answers[actionId] = val;
+    }
+  }
+
+  await run(action);
+}
+
+async function run(action) {
+  // Whatever is on screen right now is the source — so actions chain.
+  const source = input.value.trim();
+  if (!source && !imageData) {
+    return showError("Nothing to send. Paste text or copy an image first.");
+  }
+
+  clearError();
+  originalText = source;
+  lastRun = { actionId: action.id };
+
+  const headers = [];
+  if (action.input && answers[action.id]) {
+    headers.push(`${action.input.header || "Input"}: ${answers[action.id]}`);
+  }
+  const composedText = headers.length ? `${headers.join("\n")}\n\n${source}` : source;
+
+  const runId = ++runSeq;
+  activeRunId = runId;
+  running = true;
+  resultText = "";
+  hasResult = true;
+  setView("result");
+  setBusy(true, action.label);
+
+  try {
+    const res = await window.api.runLLM({
+      runId,
+      action: action.id,
+      inputText: composedText,
+      imageData,
+      providerConfig,
+    });
+
+    if (runId !== activeRunId) return; // superseded by a newer run
+
+    if (res?.aborted) {
+      runStatus.textContent = "Cancelled";
+      return;
+    }
+    if (!res || res.error) throw new Error(res?.error || "Unknown LLM error");
+
+    // Non-streaming providers return the whole thing at the end.
+    if (res.text && res.text !== resultText) {
+      resultText = res.text;
+      if (view === "result") setTextarea(resultText);
+    }
+
+    await window.api.writeClipboard(resultText);
+
+    if (cfg?.autoPaste?.enabled) {
+      const p = await window.api.pasteBack(resultText);
+      runStatus.textContent = p?.ok ? "Pasted" : "Copied to clipboard";
+      if (p && !p.ok && p.error) showError(p.error);
+    } else {
+      runStatus.textContent = "Copied to clipboard";
+      flash("Copied to clipboard!");
+    }
+  } catch (err) {
+    if (runId === activeRunId) {
+      runStatus.textContent = "Failed";
+      showError(err.message);
+    }
+  } finally {
+    if (runId === activeRunId) {
+      running = false;
+      setBusy(false);
+    }
+  }
+}
+
+// Stream deltas straight into the textarea.
+window.api.onDelta(({ runId, delta }) => {
+  if (runId !== activeRunId) return; // stale run
+  resultText += delta;
+  if (view === "result") {
+    setTextarea(resultText);
+    input.scrollTop = input.scrollHeight;
+  }
 });
 
-// When the app opens with clipboard payload:
+function setTextarea(text) {
+  input.value = text;
+  autoGrowTextarea();
+  scheduleResize();
+}
+
+function setBusy(busy, label) {
+  btnCancel.hidden = !busy;
+  btnRetry.hidden = busy;
+  input.readOnly = busy;
+  if (busy) runStatus.textContent = `${label ?? "Running"}…`;
+  document.body.style.opacity = busy ? 0.85 : 1;
+}
+
+function setView(next) {
+  view = next;
+  viewbar.hidden = !hasResult;
+  btnPaste.hidden = !cfg?.autoPaste?.enabled;
+  setTextarea(view === "result" ? resultText : originalText);
+  const on = "var(--accent)";
+  const off = "rgba(255,255,255,0.1)";
+  viewOriginalBtn.style.borderColor = view === "original" ? on : off;
+  viewResultBtn.style.borderColor = view === "result" ? on : off;
+}
+
+viewOriginalBtn.onclick = () => setView("original");
+viewResultBtn.onclick = () => setView("result");
+btnCancel.onclick = () => {
+  window.api.cancelLLM();
+  running = false;
+  setBusy(false);
+  runStatus.textContent = "Cancelled";
+};
+btnRetry.onclick = () => {
+  if (lastRun) runAction(lastRun.actionId, { reuseAnswer: true });
+};
+btnCopy.onclick = async () => {
+  await window.api.writeClipboard(input.value);
+  flash("Copied!");
+};
+btnPaste.onclick = async () => {
+  const p = await window.api.pasteBack(input.value);
+  if (p && !p.ok && p.error) showError(p.error);
+};
+
+// ---------- clipboard payload ----------
 function applyPayload(p) {
+  if (!p) return;
+  // A fresh open starts a fresh document.
+  hasResult = false;
+  resultText = "";
+  view = "original";
+  viewbar.hidden = true;
+  clearError();
+
   if (p.text) input.value = p.text;
+  originalText = input.value;
+
   imageData = p.imageData || null;
   if (imageData) {
     imgEl.src = imageData;
@@ -116,294 +423,328 @@ function applyPayload(p) {
     imgWrap.hidden = true;
   }
   autoGrowTextarea();
-  // Wait a tick for layout, then resize
   requestAnimationFrame(() => scheduleResize());
   input.focus();
   input.select();
 }
 
-let currentAction = "translate_en"; // default action
-let imageData = null;
-let providerConfig = null;
-let rewriteStyle = null;
-
-function setAction(a) {
-  currentAction = a;
-  highlight();
-}
-function highlight() {
-  for (const b of [btnAsk, btnProof, btnEn, btnTo, btnSum, btnRewrite])
-    b.style.borderColor = "rgba(255,255,255,0.1)";
-  const m = {
-    ask: btnAsk,
-    proofread: btnProof,
-    translate_en: btnEn,
-    translate_to: btnTo,
-    summarize: btnSum,
-    rewrite_style: btnRewrite,
-  }[currentAction];
-  m.style.borderColor = "var(--accent)";
-}
-
 window.api.onOpened((payload) => {
   applyPayload(payload);
-  setAction(currentAction);
+  if (payload?.action) runAction(payload.action);
+  else highlight();
 });
 
+window.api.onOpenSettings?.(() => openSettings());
+
+// ---------- keyboard ----------
 window.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
+  const dialogOpen = document.querySelector("dialog[open]");
+
   if (e.key === "Escape") {
+    if (dialogOpen) return; // the dialog handles its own Escape
+    if (running) {
+      btnCancel.onclick();
+      return;
+    }
     window.api.hideWindow();
+    return;
   }
-  if (mod && e.key === "1") {
-    setAction("ask");
-    run();
+
+  if (!mod || dialogOpen) return;
+
+  if (e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    openPalette();
+    return;
   }
-  if (mod && e.key === "2") {
-    setAction("proofread");
-    run();
-  }
-  if (mod && e.key === "3") {
-    setAction("translate_en");
-    run();
-  }
-  if (mod && e.key === "4") {
-    setAction("translate_to");
-    askLanguage();
-  }
-  if (mod && e.key === "5") {
-    setAction("summarize");
-    run();
-  }
-  if (mod && e.key === "6") {
-    setAction("rewrite_style");
-    askStyle();
-  }
-  if (mod && e.key === "Enter") {
-    run();
+
+  const byNumber = actions[Number(e.key) - 1];
+  if (byNumber) {
+    e.preventDefault();
+    runAction(byNumber.id);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    const a = actionById(currentActionId) || actions[0];
+    if (a) runAction(a.id, { reuseAnswer: true });
   }
 });
 
-btnAsk.onclick = () => setAction("ask");
-btnProof.onclick = () => setAction("proofread");
-btnEn.onclick = () => setAction("translate_en");
-btnTo.onclick = () => {
-  setAction("translate_to");
-  askLanguage();
-};
-btnSum.onclick = () => {
-  setAction("summarize");
-  run();
-};
-btnRewrite.onclick = () => {
-  setAction("rewrite_style");
-  askStyle();
-};
-btnSettings.onclick = async () => openSettings();
+// ---------- command palette ----------
+let paletteIndex = 0;
+let paletteMatches = [];
 
-async function askInput({ title, help, placeholder, initial, fallback }) {
-  const dlg = document.getElementById("promptDlg");
-  const input = document.getElementById("promptInput");
-  const titleEl = document.getElementById("promptTitle");
-  const helpEl = document.getElementById("promptHelp");
+function openPalette() {
+  paletteInput.value = "";
+  renderPalette("");
+  palette.showModal();
+  requestAnimationFrame(() => paletteInput.focus());
+}
 
-  // Set up the dialog's content
-  titleEl.textContent = title ?? "Input";
-  helpEl.textContent = help ?? "";
-  input.placeholder = placeholder ?? "";
-  input.value = initial ?? "";
+function renderPalette(q) {
+  const needle = q.trim().toLowerCase();
+  paletteMatches = actions.filter(
+    (a) =>
+      !needle ||
+      a.label.toLowerCase().includes(needle) ||
+      a.id.toLowerCase().includes(needle)
+  );
+  paletteIndex = 0;
+  paintPalette();
+}
 
-  return new Promise((resolve) => {
-    dlg.addEventListener(
-      "close",
-      () => {
-        // If the 'Ok' button was clicked or Enter was pressed
-        if (dlg.returnValue === "ok") {
-          const raw = input.value.trim();
-          // Use the input, or the fallback, or the initial value, etc.
-          const val = raw || fallback || initial || placeholder || "";
-          resolve(val);
-        } else {
-          // The user cancelled (Cancel button or Escape key)
-          resolve(null);
-        }
-      },
-      { once: true }
-    );
-
-    dlg.showModal();
-    // A small delay ensures the dialog is painted before we focus/select
-    requestAnimationFrame(() => {
-      input.focus();
-      input.select();
-    });
+function paintPalette() {
+  paletteList.innerHTML = "";
+  paletteMatches.forEach((a, i) => {
+    const row = document.createElement("div");
+    row.className =
+      "px-3 py-2 rounded-lg text-sm cursor-pointer border " +
+      (i === paletteIndex
+        ? "border-accent/60 bg-white/10"
+        : "border-transparent hover:bg-white/5");
+    row.innerHTML = `<div class="font-medium">${escapeHtml(a.label)}</div>
+      <div class="text-xs text-zinc-400">${escapeHtml(a.id)}</div>`;
+    row.onclick = () => {
+      palette.close();
+      runAction(a.id);
+    };
+    paletteList.appendChild(row);
   });
 }
 
-async function askLanguage() {
-  const defLang = sTargetLang?.value || "";
-  const fallback = providerConfig.targetLang || "Mongolian";
-
-  const lang = await askInput({
-    title: "Translate to which language?",
-    help: "e.g., Finnish",
-    placeholder: fallback,
-    initial: defLang,
-    fallback,
-  });
-
-  //If the user cancelled, do nothing.
-  if (lang === null) {
-    return;
-  }
-
-  providerConfig = {
-    ...(providerConfig || {}),
-    targetLang: lang, // No need for the complex nullish coalescing here
-  };
-  await run();
-}
-
-async function askStyle() {
-  const current = rewriteStyle || "formal";
-
-  const style = await askInput({
-    title: "Rewrite in which style?",
-    help: "e.g., formal, friendly, academic, marketing",
-    placeholder: current,
-    initial: rewriteStyle || "",
-    fallback: current,
-  });
-
-  //If the user cancelled, do nothing.
-  if (style === null) {
-    return;
-  }
-
-  rewriteStyle = String(style).trim().toLowerCase();
-  await run();
-}
-
-async function run() {
-  const text = input.value.trim();
-  if (!text && !imageData) {
-    alert("Nothing to send. Paste text or copy an image first.");
-    return;
-  }
-
-  // --- ensure target language for translate_to ---
-  let targetLang = providerConfig?.targetLang;
-  if (currentAction === "translate_to") {
-    // optional: read a default from settings UI if you have one
-    const defaultFromSettings =
-      typeof sTargetLang !== "undefined" && sTargetLang?.value?.trim();
-    if (!targetLang && defaultFromSettings) {
-      targetLang = defaultFromSettings;
-      providerConfig = { ...(providerConfig || {}), targetLang };
-    }
-    // if still missing, ask the user once (use your modal prompt if you have one)
-    if (!targetLang) {
-      // If you implemented askLanguage() already, reuse it:
-      if (typeof askLanguage === "function") {
-        await askLanguage();
-        targetLang = providerConfig?.targetLang;
-        if (!targetLang) return; // user cancelled
-      } else {
-        alert("Please set a target language first.");
-        return;
-      }
+paletteInput.addEventListener("input", () => renderPalette(paletteInput.value));
+paletteInput.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    paletteIndex = Math.min(paletteIndex + 1, paletteMatches.length - 1);
+    paintPalette();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    paletteIndex = Math.max(paletteIndex - 1, 0);
+    paintPalette();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    const a = paletteMatches[paletteIndex];
+    if (a) {
+      palette.close();
+      runAction(a.id);
     }
   }
+});
+palette.addEventListener("close", () => setTimeout(scheduleResize, 10));
 
-  // --- compose input with headers for the model ---
-  const headers = [];
-  if (currentAction === "rewrite_style" && rewriteStyle) {
-    headers.push(`Style: ${rewriteStyle}`);
-  }
-  if (currentAction === "translate_to" && targetLang) {
-    headers.push(`Target language: ${targetLang}`);
-  }
+// ---------- settings ----------
+$("btn-settings").onclick = () => openSettings();
+$("onboard-open").onclick = () => openSettings();
+$("settingsClose")?.addEventListener("click", () => settingsDlg.close());
+settingsDlg.addEventListener("close", () => setTimeout(scheduleResize, 10));
+$("promptDlg").addEventListener("close", () => setTimeout(scheduleResize, 10));
 
-  const composedText = headers.length
-    ? `${headers.join("\n")}\n\n${text}`
-    : text;
-
-  const payload = {
-    action: currentAction,
-    inputText: composedText,
-    imageData,
-    providerConfig,
-  };
-
-  setBusy(true);
-  try {
-    const result = await window.api.runLLM(payload);
-    if (!result || result.error) {
-      throw new Error(result?.error || "Unknown LLM error");
-    }
-    await window.api.writeClipboard(result.text);
-    input.value = result.text;
-    autoGrowTextarea();
-    scheduleResize();
-    flash("Copied to clipboard!");
-  } catch (err) {
-    console.error(err);
-    alert("Error: " + err.message);
-  } finally {
-    setBusy(false);
-  }
-}
-
-function setBusy(b) {
-  document.body.style.opacity = b ? 0.6 : 1;
-}
-function flash(msg) {
-  const el = document.createElement("div");
-  el.textContent = msg;
-  el.style.position = "fixed";
-  el.style.bottom = "16px";
-  el.style.right = "16px";
-  el.style.padding = "8px 10px";
-  el.style.background = "rgba(0,0,0,0.5)";
-  el.style.borderRadius = "10px";
-  el.style.fontSize = "12px";
-  el.style.border = "1px solid rgba(255,255,255,0.12)";
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 1400);
-}
-
-// Settings
 async function openSettings() {
-  const cfg = await window.api.getConfig();
+  cfg = await window.api.getConfig();
+  appInfo = await window.api.getInfo();
+
   sHotkey.value = cfg.hotkey || "";
   sTargetLang.value = cfg.targetLang || "";
+  sHideOnBlur.checked = cfg.hideOnBlur !== false;
+  sOzone.value = cfg.ozonePlatform || "";
+  sPortal.checked = !!cfg.useGlobalShortcutsPortal;
+  sOpaque.checked = !!cfg.disableTransparency;
+  sHideDock.checked = !!cfg.hideDockIcon;
+  sAutoPaste.checked = !!cfg.autoPaste?.enabled;
+  sAutoPasteCmd.value = cfg.autoPaste?.command || "";
+
+  sDockRow.hidden = !appInfo.isMac;
+  sLinux.hidden = !appInfo.isLinux;
+  if (appInfo.isLinux) {
+    sLinuxHint.textContent = appInfo.isWayland
+      ? "Wayland session detected. Electron's global hotkey is an X11 grab, so it only fires while an X11 window has focus. Bind your compositor to `echo-llm --toggle` for a hotkey that always works."
+      : "X11 session detected. Global hotkeys should work normally.";
+  }
+
+  const ap = appInfo.autoPaste || {};
+  sAutoPasteStatus.textContent = ap.available
+    ? `Ready — will use \`${ap.tool}\`.`
+    : ap.hint || "No supported paste tool found.";
+  sAutoPasteStatus.className = ap.available
+    ? "text-xs text-zinc-400"
+    : "text-xs text-amber-300";
+
+  sSecrets.textContent = `API keys are stored in: ${appInfo.secrets?.label || "unknown"}.`;
+  sSecrets.className = appInfo.secrets?.secure
+    ? "text-xs text-zinc-400"
+    : "text-xs text-amber-300";
+
+  renderActionList();
   await refreshProvidersUI();
   settingsDlg.showModal();
 }
 
-saveBtn?.addEventListener("click", async (e) => {
+$("saveSettings")?.addEventListener("click", async (e) => {
   e.preventDefault();
-  const next = { hotkey: sHotkey.value, targetLang: sTargetLang.value };
+  const next = {
+    hotkey: sHotkey.value,
+    targetLang: sTargetLang.value,
+    hideOnBlur: sHideOnBlur.checked,
+    hideDockIcon: sHideDock.checked,
+    ozonePlatform: sOzone.value,
+    useGlobalShortcutsPortal: sPortal.checked,
+    disableTransparency: sOpaque.checked,
+    autoPaste: {
+      enabled: sAutoPaste.checked,
+      command: sAutoPasteCmd.value.trim(),
+    },
+    actions,
+  };
+  const restartKeys = ["ozonePlatform", "disableTransparency", "hideDockIcon"];
+  const needsRestart = restartKeys.some((k) => next[k] !== (cfg?.[k] ?? (k === "ozonePlatform" ? "" : false)));
+
   const res = await window.api.setConfig(next);
-  if (res?.ok) {
-    await applyFooterProviderLabel();
-    settingsDlg.close();
-    flash("Settings saved");
-  }
+  if (!res?.ok) return showError("Could not save settings");
+
+  cfg = res.config;
+  actions = cfg.actions || [];
+  renderActionButtons();
+  await applyFooterProviderLabel();
+  await refreshPlatformBanner();
+  setView(view);
+  settingsDlg.close();
+  flash(needsRestart ? "Saved — restart Echo to apply" : "Settings saved");
 });
 
-function showProviderRowsForType(type) {
-  const isOllama = type === "ollama";
-  pRowHost.classList.toggle("hidden", !isOllama);
-  pRowApiBase.classList.toggle("hidden", isOllama);
+// ---------- action editor ----------
+function renderActionList() {
+  actionList.innerHTML = "";
+  actions.forEach((a, i) => {
+    const row = document.createElement("div");
+    row.className =
+      "flex items-center justify-between border border-white/10 rounded-lg px-3 py-2 bg-white/5 gap-2";
+
+    const meta = document.createElement("div");
+    meta.className = "text-sm min-w-0";
+    meta.innerHTML = `<div class="font-medium">${escapeHtml(a.label)} ${
+      i < 9 ? `<span class="text-xs text-zinc-500">Mod+${i + 1}</span>` : ""
+    }</div>
+      <div class="text-xs text-zinc-400 truncate">${escapeHtml(a.prompt || "")}</div>`;
+
+    const acts = document.createElement("div");
+    acts.className = "flex gap-1 shrink-0";
+
+    const mk = (label, fn, title) => {
+      const b = document.createElement("button");
+      b.className = "btn py-0.5";
+      b.type = "button";
+      b.textContent = label;
+      if (title) b.title = title;
+      b.onclick = (e) => {
+        e.preventDefault();
+        fn();
+      };
+      return b;
+    };
+
+    acts.append(
+      mk("↑", () => moveAction(i, -1), "Move up"),
+      mk("↓", () => moveAction(i, 1), "Move down"),
+      mk("Edit", () => openActionEditor(a)),
+      mk("Delete", () => {
+        if (actions.length === 1) return showError("Keep at least one action.");
+        if (!confirm(`Delete action "${a.label}"?`)) return;
+        actions.splice(i, 1);
+        renderActionList();
+      })
+    );
+
+    row.append(meta, acts);
+    actionList.appendChild(row);
+  });
 }
 
+function moveAction(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= actions.length) return;
+  [actions[i], actions[j]] = [actions[j], actions[i]];
+  renderActionList();
+}
+
+function openActionEditor(a = null) {
+  $("a-origId").value = a?.id || "";
+  $("a-label").value = a?.label || "";
+  $("a-id").value = a?.id || "";
+  $("a-prompt").value = a?.prompt || "";
+  $("a-hasInput").checked = !!a?.input;
+  $("a-inputTitle").value = a?.input?.title || "";
+  $("a-inputHelp").value = a?.input?.help || "";
+  $("a-inputHeader").value = a?.input?.header || "";
+  $("a-input-rows").classList.toggle("hidden", !a?.input);
+  actionDlg.showModal();
+}
+
+$("a-hasInput").addEventListener("change", (e) => {
+  $("a-input-rows").classList.toggle("hidden", !e.target.checked);
+});
+$("actionCancelBtn").onclick = () => actionDlg.close();
+$("btn-add-action").onclick = (e) => {
+  e.preventDefault();
+  openActionEditor(null);
+};
+$("btn-reset-actions").onclick = async (e) => {
+  e.preventDefault();
+  if (!confirm("Replace all actions with the defaults?")) return;
+  const res = await window.api.setConfig({ actions: null });
+  cfg = res.config;
+  actions = cfg.actions || [];
+  renderActionList();
+  renderActionButtons();
+};
+
+$("actionForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const origId = $("a-origId").value;
+  const label = $("a-label").value.trim() || "Action";
+  const id =
+    ($("a-id").value.trim() || label.toLowerCase().replace(/[^a-z0-9]+/g, "_")).replace(
+      /^_+|_+$/g,
+      ""
+    ) || "action";
+  const prompt = $("a-prompt").value.trim();
+  if (!prompt) return showError("An action needs a prompt.");
+
+  if (actions.some((a) => a.id === id && a.id !== origId)) {
+    return showError(`An action with id "${id}" already exists.`);
+  }
+
+  const next = { id, label, prompt };
+  if ($("a-hasInput").checked) {
+    next.input = {
+      key: id,
+      header: $("a-inputHeader").value.trim() || "Input",
+      title: $("a-inputTitle").value.trim() || "Input",
+      help: $("a-inputHelp").value.trim(),
+    };
+  }
+
+  const idx = actions.findIndex((a) => a.id === origId);
+  if (idx >= 0) actions[idx] = { ...actions[idx], ...next, input: next.input };
+  else actions.push(next);
+
+  actionDlg.close();
+  renderActionList();
+});
+
+// ---------- providers ----------
+const pType = $("p-type");
+function showProviderRowsForType(type) {
+  const isOllama = type === "ollama";
+  $("p-row-host").classList.toggle("hidden", !isOllama);
+  $("p-row-apiBase").classList.toggle("hidden", isOllama);
+  $("p-row-apiKey").classList.toggle("hidden", isOllama);
+}
 pType.addEventListener("change", () => showProviderRowsForType(pType.value));
 
 async function refreshProvidersUI() {
   const { providers, defaultProviderId } = await window.api.listProviders();
 
-  // Default provider dropdown
   sDefaultProvider.innerHTML = "";
   for (const p of providers) {
     const opt = document.createElement("option");
@@ -413,21 +754,29 @@ async function refreshProvidersUI() {
     sDefaultProvider.appendChild(opt);
   }
 
-  // Provider list
   provList.innerHTML = "";
   for (const p of providers) {
     const row = document.createElement("div");
     row.className =
       "flex items-center justify-between border border-white/10 rounded-lg px-3 py-2 bg-white/5";
 
+    // Ollama and local gateways legitimately need no key.
+    const needsKey = p.type === "openai" || p.type === "gemini";
+    const keyBadge = p.hasKey
+      ? '<span class="text-emerald-400">key saved</span>'
+      : needsKey
+      ? '<span class="text-amber-400">no key</span>'
+      : '<span class="text-zinc-500">no key needed</span>';
+
     const meta = document.createElement("div");
     meta.className = "text-sm";
-    meta.innerHTML = `<div class="font-medium">${p.label}</div>
-      <div class="text-xs text-zinc-400">${p.type} · ${p.model || ""} · ${
-      p.type === "ollama" ? p.host : p.apiBase
-    }</div>`;
-    const actions = document.createElement("div");
-    actions.className = "flex gap-2";
+    meta.innerHTML = `<div class="font-medium">${escapeHtml(p.label)}</div>
+      <div class="text-xs text-zinc-400">${escapeHtml(p.type)} · ${escapeHtml(
+      p.model || ""
+    )} · ${escapeHtml(p.type === "ollama" ? p.host || "" : p.apiBase || "")} · ${keyBadge}</div>`;
+
+    const actionsEl = document.createElement("div");
+    actionsEl.className = "flex gap-2";
 
     const editBtn = document.createElement("button");
     editBtn.className = "btn";
@@ -446,93 +795,118 @@ async function refreshProvidersUI() {
       e.preventDefault();
       if (!confirm(`Delete provider "${p.label}"?`)) return;
       const res = await window.api.deleteProvider(p.id);
-      if (!res?.ok) return alert(res.error || "Delete failed");
+      if (!res?.ok) return showError(res.error || "Delete failed");
       await refreshProvidersUI();
       await applyFooterProviderLabel();
     };
 
-    actions.append(editBtn, delBtn);
-    row.append(meta, actions);
+    actionsEl.append(editBtn, delBtn);
+    row.append(meta, actionsEl);
     provList.appendChild(row);
   }
 }
 
 function openProviderEditor(p = null) {
-  console.log("open: ", p);
-  pId.value = p?.id || "";
-  pLabel.value = p?.label || "";
+  $("p-id").value = p?.id || "";
+  $("p-label").value = p?.label || "";
   pType.value = p?.type || "openai";
-  pApiBase.value = p?.apiBase || "";
-  pApiKey.value = "";
-  pHost.value = p?.host || "";
-  pModel.value = p?.model || "";
+  $("p-apiBase").value = p?.apiBase || "";
+  $("p-apiKey").value = "";
+  $("p-host").value = p?.host || "";
+  $("p-model").value = p?.model || "";
   showProviderRowsForType(pType.value);
   providerDlg.showModal();
 }
 
-providerForm?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const prov = {
-    id: pId.value || undefined,
-    label: (pLabel.value || "").trim() || "Provider",
-    type: pType.value,
-    apiBase: (pApiBase.value || "").trim() || undefined,
-    apiKey: (pApiKey.value || "").trim() || undefined,
-    host: (pHost.value || "").trim() || undefined,
-    model: (pModel.value || "").trim() || "",
-  };
-  const res = await window.api.saveProvider(prov);
-  if (!res?.ok) return alert(res.error || "Save failed");
-  providerDlg.close();
-  await refreshProvidersUI();
-  await applyFooterProviderLabel();
-});
-
-providerSaveBtn.addEventListener("click", async (e) => {
-  e.preventDefault();
-  const prov = {
-    id: pId.value || undefined,
-    label: pLabel.value.trim() || "Provider",
-    type: pType.value,
-    apiBase: pApiBase.value.trim() || undefined,
-    apiKey: (pApiKey.value || "").trim() || undefined,
-    host: pHost.value.trim() || undefined,
-    model: pModel.value.trim() || "",
-  };
-  const res = await window.api.saveProvider(prov);
-  if (!res?.ok) return alert(res.error || "Save failed");
-  providerDlg.close();
-  await refreshProvidersUI();
-  await applyFooterProviderLabel();
-});
-
-btnAddProvider?.addEventListener("click", (e) => {
+$("providerCancelBtn")?.addEventListener("click", () => providerDlg.close());
+$("btn-add-provider")?.addEventListener("click", (e) => {
   e.preventDefault();
   openProviderEditor(null);
 });
 
-sDefaultProvider?.addEventListener("change", async () => {
-  const id = sDefaultProvider.value;
-  const res = await window.api.setDefaultProvider(id);
-  if (!res?.ok) return alert(res.error || "Failed to set default");
+$("providerForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const prov = {
+    id: $("p-id").value || undefined,
+    label: $("p-label").value.trim() || "Provider",
+    type: pType.value,
+    apiBase: $("p-apiBase").value.trim() || undefined,
+    apiKey: $("p-apiKey").value.trim() || undefined,
+    host: $("p-host").value.trim() || undefined,
+    model: $("p-model").value.trim() || "",
+  };
+  const res = await window.api.saveProvider(prov);
+  if (!res?.ok) return showError(res.error || "Save failed");
+  providerDlg.close();
+  await refreshProvidersUI();
   await applyFooterProviderLabel();
 });
 
-// Load provider label from config on first load
+sDefaultProvider?.addEventListener("change", async () => {
+  const res = await window.api.setDefaultProvider(sDefaultProvider.value);
+  if (!res?.ok) return showError(res.error || "Failed to set default");
+  await applyFooterProviderLabel();
+});
+
 async function applyFooterProviderLabel() {
   try {
     const { providers, defaultProviderId } = await window.api.listProviders();
     const def = providers.find((p) => p.id === defaultProviderId);
-    providerEl.textContent = def ? `Provider: ${def.label}` : "";
+    providerEl.textContent = def
+      ? `Provider: ${def.label}${def.model ? ` · ${def.model}` : ""}`
+      : "No provider — open Settings";
 
+    onboarding.hidden = !!def;
     providerConfig = {
       providerId: def?.id,
-      targetLang: (await window.api.getConfig()).targetLang,
+      targetLang: cfg?.targetLang,
     };
+    scheduleResize();
   } catch {}
 }
 
-// call once on boot
+// ---------- platform banner ----------
+const BANNER_DISMISSED = "echo:bannerDismissed";
+
+async function refreshPlatformBanner() {
+  if (!banner) return;
+  appInfo = await window.api.getInfo();
+
+  let msg = "";
+  if (!appInfo.hotkeyRegistered && appInfo.isWayland) {
+    msg =
+      "No global hotkey on this Wayland session. Bind your compositor to <code>echo-llm --toggle</code> — e.g. Hyprland: <code>bind = ALT, SPACE, exec, echo-llm --toggle</code>.";
+  } else if (!appInfo.hotkeyRegistered) {
+    msg =
+      "Echo couldn't register a global hotkey — another app probably owns it. Pick a different one in Settings, or launch with <code>echo-llm --toggle</code>.";
+  } else if (appInfo.isWayland) {
+    msg = `Hotkey <code>${escapeHtml(
+      appInfo.hotkey
+    )}</code> is registered, but on Wayland it only fires while an X11 window has focus. For a hotkey that always works, bind your compositor to <code>echo-llm --toggle</code>.`;
+  }
+
+  if (!msg || localStorage.getItem(BANNER_DISMISSED) === msg) {
+    banner.hidden = true;
+  } else {
+    bannerText.innerHTML = msg;
+    banner.hidden = false;
+    banner.dataset.msg = msg;
+  }
+  scheduleResize();
+}
+
+$("banner-dismiss")?.addEventListener("click", () => {
+  localStorage.setItem(BANNER_DISMISSED, banner.dataset.msg || "1");
+  banner.hidden = true;
+  scheduleResize();
+});
+
+// ---------- boot ----------
 (async () => {
+  cfg = await window.api.getConfig();
+  actions = cfg.actions || [];
+  currentActionId = actions[0]?.id || null;
+  renderActionButtons();
   await applyFooterProviderLabel();
+  await refreshPlatformBanner();
 })();

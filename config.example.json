@@ -1,14 +1,38 @@
 {
-  "hotkey": "Ctrl+Space",
-  "targetLang": "Mongolian",
+  "_comment": "Copied to <userData>/config.json on first run. API keys are NOT stored here — they go to the OS keychain via Settings.",
+  "hotkey": "Alt+Space",
+  "targetLang": "Finnish",
   "defaultProviderId": "prov-ollama",
+
+  "hideOnBlur": true,
+  "hideDockIcon": false,
+  "disableTransparency": false,
+  "ozonePlatform": "",
+  "useGlobalShortcutsPortal": false,
+  "autoPaste": { "enabled": false, "command": "" },
+
+  "actions": [
+    { "id": "ask", "label": "Ask", "prompt": "Give a brief answer or explanation to the given input" },
+    {
+      "id": "translate_to",
+      "label": "To…",
+      "prompt": "Translate the user's text into the target language. Provide only the translation without any explanation.",
+      "input": {
+        "key": "targetLang",
+        "header": "Target language",
+        "title": "Translate to which language?",
+        "help": "e.g., Finnish",
+        "fromConfig": "targetLang"
+      }
+    }
+  ],
+
   "providers": [
     {
       "id": "prov-openai",
       "label": "OpenAI (prod)",
       "type": "openai",
       "apiBase": "https://api.openai.com/v1",
-      "apiKeyEnv": "OPENAI_API_KEY",
       "model": "gpt-4o-mini"
     },
     {
@@ -16,14 +40,13 @@
       "label": "OpenAI-Compatible (local)",
       "type": "openaiCompatible",
       "apiBase": "http://localhost:11434/v1",
-      "apiKeyEnv": "OPENAI_COMPAT_KEY",
       "model": "gpt-4o-mini"
     },
     {
       "id": "prov-ollama",
       "label": "Ollama (localhost)",
       "type": "ollama",
-      "apiBase": "http://localhost:11434",
+      "host": "http://localhost:11434",
       "model": "gemma3:27b"
     },
     {
@@ -31,7 +54,6 @@
       "label": "Gemini (Google AI Studio)",
       "type": "gemini",
       "apiBase": "https://generativelanguage.googleapis.com",
-      "apiKeyEnv": "GEMINI_API_KEY",
       "model": "gemini-2.5-flash"
     }
   ]

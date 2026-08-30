@@ -9,19 +9,21 @@ export async function runLLM({
   system,
   inputText,
   imageData,
+  onDelta,
+  signal,
 }) {
   if (!providerSpec) return { error: "No provider configured" };
 
+  const common = { system, inputText, imageData, onDelta, signal };
+
   if (providerSpec.type === "gemini") {
     if (!apiKey)
-      return { error: `Missing API key in env: ${providerSpec.apiKeyEnv}` };
+      return { error: `No API key stored for "${providerSpec.label}". Add one in Settings.` };
     return await runWithGemini({
       apiBase: providerSpec.apiBase,
       apiKey,
       model: providerSpec.model,
-      system,
-      inputText,
-      imageData,
+      ...common,
     });
   }
 
@@ -29,24 +31,19 @@ export async function runLLM({
     return await runWithOllama({
       host: providerSpec.host,
       model: providerSpec.model,
-      system,
-      inputText,
-      imageData,
+      ...common,
     });
   }
 
-  // OpenAI or compatible endpoint
-  const base = providerSpec.apiBase;
-  const model = providerSpec.model;
+  // OpenAI or compatible endpoint. Self-hosted gateways frequently need no key,
+  // so only demand one for the hosted OpenAI type.
+  if (!apiKey && providerSpec.type === "openai")
+    return { error: `No API key stored for "${providerSpec.label}". Add one in Settings.` };
 
-  if (!apiKey)
-    return { error: `Missing API key in env: ${providerSpec.apiKeyEnv}` };
   return await runWithOpenAI({
-    base,
+    base: providerSpec.apiBase,
     apiKey,
-    model,
-    system,
-    inputText,
-    imageData,
+    model: providerSpec.model,
+    ...common,
   });
 }

@@ -8,7 +8,6 @@
     />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Echo</title>
-    <!-- Tailwind output (built from tw.css) -->
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body class="text-zinc-100">
@@ -16,50 +15,95 @@
       id="shell"
       class="w-full backdrop-blur-2xl saturate-125 bg-zinc-900/85 rounded-2xl shadow-2xl p-3"
     >
-      <div id="bar" class="flex justify-between items-center px-2.5 py-1.5">
-        <span id="brand" class="font-bold tracking-wide opacity-90"
-          >⌘ Echo</span
+      <div id="bar" class="flex justify-between items-center gap-2 px-2.5 py-1.5">
+        <span id="brand" class="font-bold tracking-wide opacity-90 shrink-0">⌘ Echo</span>
+        <div id="actions" class="flex items-center flex-wrap justify-end gap-2"></div>
+        <button
+          id="btn-settings"
+          title="Settings"
+          class="btn shrink-0 w-9 text-center p-1.5"
         >
-        <div id="actions" class="flex items-center">
-          <button id="act-ask" title="Mod+1" class="btn ml-2">
-            Ask <span class="text-xs text-zinc-100 text-opacity-40"> (1)</span>
-          </button>
-          <button id="act-proof" title="Mod+2" class="btn ml-2">
-            Proofread
-            <span class="text-xs text-zinc-100 text-opacity-40"> (2)</span>
-          </button>
-          <button id="act-en" title="Mod+3" class="btn ml-2">
-            To English
-            <span class="text-xs text-zinc-100 text-opacity-40"> (3)</span>
-          </button>
-          <button id="act-to" title="Mod+4" class="btn ml-2">
-            To… <span class="text-xs text-zinc-100 text-opacity-40"> (4)</span>
-          </button>
-          <button id="act-sum" title="Mod+5" class="btn ml-2">
-            Summarize
-            <span class="text-xs text-zinc-100 text-opacity-40"> (5)</span>
-          </button>
-
-          <button id="act-rewrite" title="Mod+6" class="btn ml-2">
-            Rewrite
-            <span class="text-xs text-zinc-100 text-opacity-40"> (6)</span>
-          </button>
-          <button
-            id="btn-settings"
-            title="Settings"
-            class="btn ml-2 w-9 text-center p-1.5"
-          >
-            ⚙︎
-          </button>
-        </div>
+          ⚙︎
+        </button>
       </div>
 
       <div id="content" class="px-2.5 pb-2.5">
+        <div
+          id="platform-banner"
+          hidden
+          class="mb-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div id="banner-text" class="leading-5"></div>
+            <button id="banner-dismiss" class="btn shrink-0 py-0.5" type="button">
+              Dismiss
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="onboarding"
+          hidden
+          class="mb-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs leading-5"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <strong>No provider configured yet.</strong>
+              Add an OpenAI key, point Echo at a local Ollama, or use any
+              OpenAI-compatible endpoint.
+            </div>
+            <button id="onboard-open" class="btn shrink-0 py-0.5" type="button">
+              Open Settings
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="error"
+          hidden
+          class="mb-2 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-100"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div id="error-text" class="leading-5 break-words"></div>
+            <button id="error-dismiss" class="btn shrink-0 py-0.5" type="button">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- Shown once a run has produced (or is producing) a result. -->
+        <div
+          id="viewbar"
+          hidden
+          class="mb-2 flex items-center justify-between gap-2 text-xs"
+        >
+          <div class="flex items-center gap-1">
+            <button id="view-original" class="btn py-0.5" type="button">
+              Original
+            </button>
+            <button id="view-result" class="btn py-0.5" type="button">
+              Result
+            </button>
+            <span id="run-status" class="ml-2 text-zinc-400"></span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button id="btn-cancel" hidden class="btn py-0.5" type="button">
+              Cancel
+            </button>
+            <button id="btn-retry" class="btn py-0.5" type="button">Retry</button>
+            <button id="btn-copy" class="btn py-0.5" type="button">Copy</button>
+            <button id="btn-paste" hidden class="btn py-0.5" type="button">
+              Paste back
+            </button>
+          </div>
+        </div>
+
         <textarea
           id="input"
           placeholder="Paste or type here…"
           class="w-full h-56 p-3.5 rounded-xl border border-white/10 bg-white/5 text-zinc-100 resize-none text-[15px] leading-6"
         ></textarea>
+
         <div id="imagePreview" hidden>
           <div class="flex items-center mt-2.5 gap-2">
             <img
@@ -72,20 +116,31 @@
             >
           </div>
         </div>
-        <div
-          id="footer"
-          class="flex justify-between mt-2 text-xs text-zinc-400 justify-end"
-        >
-          <span> Ctrl/⌘+Enter Run · Esc Close </span>
+
+        <div id="footer" class="flex justify-between mt-2 text-xs text-zinc-400">
+          <span id="footer-hint">Ctrl/⌘+Enter Run · Ctrl/⌘+K Actions · Esc Close</span>
           <span id="provider"></span>
         </div>
       </div>
     </div>
 
-    <!-- Settings Modal (single column & wider) -->
+    <!-- Command palette -->
+    <dialog
+      id="palette"
+      class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-3 w-[520px]"
+    >
+      <input
+        id="palette-input"
+        placeholder="Run an action…"
+        class="w-full px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60"
+      />
+      <div id="palette-list" class="mt-2 max-h-72 overflow-auto space-y-1"></div>
+    </dialog>
+
+    <!-- Settings -->
     <dialog
       id="settings"
-      class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-5 w-[800px]"
+      class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-5 w-[800px] max-h-[90vh] overflow-auto"
     >
       <form id="settingsForm" class="space-y-3">
         <h3 class="text-base font-semibold">Settings</h3>
@@ -108,13 +163,118 @@
         </label>
 
         <label class="flex flex-col gap-1.5 text-sm"
-          >Target language (default for Alt+3)
+          >Target language (default for the “To…” action)
           <input
             id="s-targetLang"
             placeholder="Finnish"
             class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
           />
         </label>
+
+        <label class="flex items-center gap-2 text-sm mt-1">
+          <input id="s-hideOnBlur" type="checkbox" class="accent-accent" />
+          <span>
+            Hide when the window loses focus
+            <span class="block text-xs text-zinc-400"
+              >Turn this off on Linux WMs with focus-follows-mouse.</span
+            >
+          </span>
+        </label>
+
+        <label id="s-dock-row" class="flex items-center gap-2 text-sm" hidden>
+          <input id="s-hideDock" type="checkbox" class="accent-accent" />
+          <span>
+            Hide the Dock icon
+            <span class="block text-xs text-zinc-400"
+              >macOS only. Restart Echo to apply.</span
+            >
+          </span>
+        </label>
+
+        <!-- Auto-paste -->
+        <details class="mt-2 rounded-lg border border-white/10 p-3">
+          <summary class="cursor-pointer text-sm font-medium">
+            Auto-paste (off by default)
+          </summary>
+          <div class="mt-3 space-y-3">
+            <label class="flex items-center gap-2 text-sm">
+              <input id="s-autoPaste" type="checkbox" class="accent-accent" />
+              <span>
+                Paste the result back into the app you came from
+                <span class="block text-xs text-zinc-400"
+                  >Echo hides itself, then sends a paste keystroke to whatever
+                  window regains focus.</span
+                >
+              </span>
+            </label>
+            <p id="s-autoPaste-status" class="text-xs text-zinc-400"></p>
+            <label class="flex flex-col gap-1.5 text-sm"
+              >Custom paste command (optional)
+              <input
+                id="s-autoPasteCmd"
+                placeholder="e.g. ydotool key 29:1 47:1 47:0 29:0"
+                class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+              />
+              <span class="text-xs text-zinc-400"
+                >Overrides the built-in method. Runs through your shell.</span
+              >
+            </label>
+          </div>
+        </details>
+
+        <details id="s-linux" class="mt-2 rounded-lg border border-white/10 p-3">
+          <summary class="cursor-pointer text-sm font-medium">
+            Linux &amp; Wayland
+          </summary>
+          <div class="mt-3 space-y-3">
+            <p id="s-linux-hint" class="text-xs text-zinc-400"></p>
+
+            <label class="flex flex-col gap-1.5 text-sm"
+              >Display backend
+              <select
+                id="s-ozone"
+                class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+              >
+                <option value="">Default (XWayland — allows Electron hotkeys)</option>
+                <option value="auto">Native Wayland (sharper; use --toggle for hotkey)</option>
+                <option value="x11">Force X11</option>
+              </select>
+              <span class="text-xs text-zinc-400">Restart Echo to apply.</span>
+            </label>
+
+            <label class="flex items-center gap-2 text-sm">
+              <input id="s-portal" type="checkbox" class="accent-accent" />
+              <span>
+                Use the XDG global-shortcuts portal
+                <span class="block text-xs text-zinc-400"
+                  >Experimental. Needs a portal that implements GlobalShortcuts.</span
+                >
+              </span>
+            </label>
+
+            <label class="flex items-center gap-2 text-sm">
+              <input id="s-opaque" type="checkbox" class="accent-accent" />
+              <span>
+                Disable window transparency
+                <span class="block text-xs text-zinc-400"
+                  >Fixes a black rectangle on compositors without blur support.</span
+                >
+              </span>
+            </label>
+          </div>
+        </details>
+
+        <h4 class="mt-4 mb-2 font-semibold">Actions</h4>
+        <p class="text-xs text-zinc-400 -mt-1">
+          Each action is a prompt. The first nine get Ctrl/⌘+1…9.
+        </p>
+        <div id="action-list" class="space-y-2"></div>
+        <div class="flex gap-2 mt-2">
+          <button id="btn-add-action" class="btn" type="button">Add Action</button>
+          <button id="btn-reset-actions" class="btn" type="button">
+            Reset to defaults
+          </button>
+        </div>
 
         <h4 class="mt-4 mb-2 font-semibold">Providers</h4>
         <div id="prov-list" class="space-y-2 overflow-auto pr-1"></div>
@@ -129,19 +289,97 @@
           <button id="saveSettings" class="btn" type="submit">Save</button>
         </menu>
 
-        <p class="text-xs text-zinc-400">
-          API keys are read from your .env according to provider (e.g.,
-          OPENAI_API_KEY). Keys are not stored here.
-        </p>
+        <p id="s-secrets" class="text-xs text-zinc-400"></p>
       </form>
     </dialog>
 
-    <!-- Provider Editor Dialog -->
+    <!-- Action editor -->
+    <dialog
+      id="actionDlg"
+      class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-5 w-[600px]"
+    >
+      <form id="actionForm" class="space-y-2">
+        <input id="a-origId" type="hidden" />
+        <h3 class="text-base font-semibold">Action</h3>
+
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Label
+          <input
+            id="a-label"
+            placeholder="Summarize"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Id
+          <input
+            id="a-id"
+            placeholder="summarize"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+          <span class="text-xs text-zinc-400"
+            >Used by <code>echo-llm --action=&lt;id&gt;</code>.</span
+          >
+        </label>
+
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Prompt
+          <textarea
+            id="a-prompt"
+            rows="5"
+            placeholder="Rewrite the user's text so that…"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 resize-y"
+          ></textarea>
+        </label>
+
+        <label class="flex items-center gap-2 text-sm">
+          <input id="a-hasInput" type="checkbox" class="accent-accent" />
+          <span>Ask me something before running</span>
+        </label>
+
+        <div id="a-input-rows" class="space-y-2 hidden">
+          <label class="flex flex-col gap-1.5 text-sm"
+            >Question
+            <input
+              id="a-inputTitle"
+              placeholder="Rewrite in which style?"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+            />
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm"
+            >Hint
+            <input
+              id="a-inputHelp"
+              placeholder="e.g., formal, friendly"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+            />
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm"
+            >Label sent to the model
+            <input
+              id="a-inputHeader"
+              placeholder="Style"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+            />
+            <span class="text-xs text-zinc-400"
+              >Prepended to the text as “Label: your answer”.</span
+            >
+          </label>
+        </div>
+
+        <menu class="flex justify-end gap-2 mt-3">
+          <button type="button" id="actionCancelBtn" class="btn">Cancel</button>
+          <button id="actionSaveBtn" type="submit" class="btn">Save Action</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <!-- Provider Editor -->
     <dialog
       id="providerDlg"
       class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-5 w-[560px]"
     >
-      <!-- NOTE: normal form (NOT method="dialog"), we handle submit in JS -->
       <form id="providerForm" class="space-y-2">
         <input id="p-id" type="hidden" />
 
@@ -182,7 +420,8 @@
             >API Key
             <input
               id="p-apiKey"
-              placeholder=""
+              type="password"
+              placeholder="leave blank to keep the stored key"
               class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
             />
           </label>
@@ -209,17 +448,13 @@
         </label>
 
         <menu class="flex justify-end gap-2 mt-3">
-          <button type="button" id="providerCancelBtn" class="btn">
-            Cancel
-          </button>
-          <button id="providerSaveBtn" type="submit" class="btn">
-            Save Provider
-          </button>
+          <button type="button" id="providerCancelBtn" class="btn">Cancel</button>
+          <button id="providerSaveBtn" type="submit" class="btn">Save Provider</button>
         </menu>
       </form>
     </dialog>
 
-    <!-- Generic tiny prompt (replaces window.prompt) -->
+    <!-- Generic tiny prompt -->
     <dialog
       id="promptDlg"
       class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-4 w-[420px]"
@@ -233,12 +468,8 @@
           class="mt-2 w-full px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
         />
         <menu class="flex justify-end gap-2 mt-3">
-          <button id="promptOk" type="submit" class="btn" value="ok" autofocus>
-            Ok
-          </button>
-          <button id="promptCancel" type="submit" class="btn" value="cancel">
-            Cancel
-          </button>
+          <button id="promptOk" type="submit" class="btn" value="ok" autofocus>Ok</button>
+          <button id="promptCancel" type="submit" class="btn" value="cancel">Cancel</button>
         </menu>
       </form>
     </dialog>

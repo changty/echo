@@ -1,9 +1,13 @@
+import { isAbort, readNDJSON } from "./stream.js";
+
 export async function runWithOllama({
   host,
   model,
   system,
   inputText,
   imageData,
+  onDelta,
+  signal,
 }) {
   try {
     const hasImage = !!imageData;
@@ -31,10 +35,13 @@ export async function runWithOllama({
 
     messages.push(msg);
 
+    const stream = typeof onDelta === "function";
+
     const res = await fetch(`${host}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, stream: false }),
+      body: JSON.stringify({ model, messages, stream }),
+      signal,
     });
 
     if (!res.ok) {
@@ -42,14 +49,20 @@ export async function runWithOllama({
       return { error: `HTTP ${res.status}: ${txt}` };
     }
 
-    const json = await res.json();
-    const text =
-      json?.message?.content?.trim?.() ??
-      json?.message?.content ??
-      json?.content ??
-      "";
-    return { text };
+    if (!stream) {
+      const json = await res.json();
+      const text =
+        json?.message?.content?.trim?.() ??
+        json?.message?.content ??
+        json?.content ??
+        "";
+      return { text };
+    }
+
+    const text = await readNDJSON(res, (j) => j?.message?.content, onDelta);
+    return { text: text.trim() };
   } catch (e) {
+    if (isAbort(e)) return { aborted: true, text: "" };
     return { error: e?.message || String(e) };
   }
 }

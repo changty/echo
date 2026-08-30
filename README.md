@@ -6,9 +6,13 @@ A Spotlight-style launcher for quick LLM actions. Cross-platform (macOS/Windows/
 
 - Pops up with a global hotkey (default **Alt+Space**)
 - Auto-reads text/image from the clipboard on open
-- Actions via hotkeys: **Proofread**, **Translate → English**, **Translate → …**, **Summarize**, **Rewrite in style**
-- Writes the LLM response back to the clipboard automatically
-- Works with **OpenAI**, **OpenAI-compatible** endpoints, or **Ollama** (local)
+- **Actions are just prompts you configure** — the built-ins are Ask, Proofread,
+  Translate → English, Translate → …, Summarize and Rewrite; add your own in Settings
+- **Streams** the response as it is generated, with Cancel
+- Keeps your **original text** — flip between Original and Result, or Retry
+- Writes the response to the clipboard, and can optionally **paste it straight
+  back** into the app you came from
+- Works with **OpenAI**, **OpenAI-compatible** endpoints, **Ollama** (local) or **Gemini**
 
 ---
 
@@ -55,50 +59,152 @@ Use the **⚙︎ Settings** button to change hotkey, provider, model, API base, 
 
 ---
 
+## Linux / Wayland
+
+On Wayland, Electron's global hotkey is an X11 grab and only fires while an X11
+window has focus — the usual "works sometimes" symptom. Let your compositor own
+the binding instead, and drive Echo through its CLI:
+
+    echo-llm --toggle            # show if hidden, hide if visible
+    echo-llm --action=proofread  # open and run an action on the clipboard
+    echo-llm --text="hei"        # pass text directly instead of the clipboard
+
+Echo takes a single-instance lock, so a second launch forwards its flags to the
+running instance instead of starting a second copy.
+
+Hyprland:
+
+    source = /path/to/echo/linux/hyprland.conf
+
+Tiling compositors also need a rule to *float* the window, or Echo opens as a
+full tile rather than an overlay. Ready-made configs live in `linux/`, and
+[`linux/README.md`](linux/README.md) covers packaging, keyring setup, HiDPI and
+troubleshooting.
+
+---
+
 ## Keyboard Shortcuts
 
-- **Mod+1** – Ask ("regular mode")
-- **Mod+2** – Proofread
-- **Mod+3** – Translate → English
-- **Mod+4** – Translate → (asks for language; uses default if set)
-- **Mod+5** – Summarize
-- **Mod+6** – Rewrite in style (asks for style)
-- **Ctrl/⌘ + Enter** – Run the current action
-- **Esc** – Close the window
-- Clicking outside the window (blur) also hides it.
+- **Mod+1 … Mod+9** – Run the first nine actions, in Settings order
+- **Mod+K** – Command palette: filter and run any action by name
+- **Ctrl/⌘ + Enter** – Re-run the current action
+- **Esc** – Cancel a running generation, dismiss a dialog, or close the window
+- Clicking outside the window (blur) also hides it — switch this off in Settings
+  if your window manager uses focus-follows-mouse.
+
+---
+
+## Actions
+
+An action is a label plus a prompt, stored in `config.json`. **Settings →
+Actions** lets you add, edit, reorder and delete them; the first nine get
+`Mod+1`…`Mod+9`, and every action is reachable by name via `Mod+K` or by id from
+the command line.
+
+    {
+      "id": "commit",
+      "label": "Commit msg",
+      "prompt": "Turn the following diff into a concise conventional-commit message."
+    }
+
+Tick **“Ask me something before running”** to have the action prompt you first —
+that answer is prepended to the text as `Label: your answer`, which is how the
+built-in *Translate → …* and *Rewrite* actions work.
+
+## Results
+
+Running an action never destroys your input. The response streams into the box
+while a small toolbar offers **Original / Result**, **Retry**, **Copy** and
+(when enabled) **Paste back**. Running another action uses whatever is currently
+on screen, so actions chain — summarize, then translate the summary.
+
+## Auto-paste (optional, off by default)
+
+Normally Echo leaves the result on your clipboard. Enable **Settings →
+Auto-paste** and it will instead hide itself and send a paste keystroke to
+whatever window regains focus, so a round trip is a single hotkey.
+
+It is off by default because it types into other applications:
+
+| Platform | Requirement |
+|---|---|
+| macOS | Accessibility permission (System Settings → Privacy & Security) |
+| Wayland | `wtype` (wlroots/Hyprland/sway) or `ydotool` |
+| X11 | `xdotool` |
+| Windows | works out of the box |
+
+Settings shows whether a supported method was found. A **custom paste command**
+field is available for setups none of the built-ins cover.
+
+## Command line
+
+    echo-llm --toggle              # toggle the window
+    echo-llm --show / --hide
+    echo-llm --action=<id>         # ask | proofread | translate_en |
+                                   # translate_to | summarize | rewrite_style
+    echo-llm --text="..."          # use this text instead of the clipboard
+    echo-llm --quit
 
 ---
 
 ## Providers
 
-### OpenAI
+Providers are managed in **Settings → Providers**; you can configure as many as
+you like and switch the default. API keys are entered there and stored by the
+OS, never in `config.json`.
 
-- Set `"provider": "openai"` in `config.json`
-- Put your key in `.env` → `OPENAI_API_KEY=...`
-- Configure model (e.g., `gpt-4o-mini`) and base (`https://api.openai.com/v1`)
+- **OpenAI** — API base `https://api.openai.com/v1`, model e.g. `gpt-4o-mini`
+- **OpenAI-Compatible** — any gateway speaking `/chat/completions`
+- **Ollama** — host `http://localhost:11434`, model e.g. `llama3.1:8b`; no key needed
+- **Gemini** — API base `https://generativelanguage.googleapis.com`
 
-### OpenAI-Compatible
+### Where API keys are stored
 
-- Set `"provider": "openaiCompatible"`
-- Configure `openaiCompatible.apiBase` (e.g., a self-hosted gateway)
-- Put your key in `.env` → `OPENAI_COMPAT_KEY=...`
+Echo degrades gracefully rather than failing outright:
 
-### Ollama (local)
+1. OS keychain (macOS Keychain, Windows Credential Vault, libsecret on Linux)
+2. Encrypted file via Electron `safeStorage`
+3. Plaintext file, mode `0600` — flagged in Settings
 
-- Set `"provider": "ollama"`
-- Ensure `ollama` is running (`ollama serve`)
-- Choose a local model (e.g., `llama3.1:8b`) and set `ollama.host` (usually `http://localhost:11434`)
+Many minimal Linux setups run no Secret Service; install `gnome-keyring` to get
+tier 1.
 
 ---
 
+## Tests
+
+    npm test
+
+Covers provider streaming (including chunk boundaries that split a JSON frame
+mid-line, aborts and HTTP errors), tray-icon decoding and secret-storage
+round-trips, plus a renderer suite that drives the real UI against mocked IPC.
+
+`ECHO_DEBUG=1 npm run dev` mirrors renderer console output into the terminal,
+which beats DevTools for a frameless hide-on-blur window.
+
 ## Package / Distribute
 
-Build Tailwind once, then package with electron-builder:
+    npm run dist:linux    # AppImage + tar.gz
+    npm run dist:mac      # dmg  (must run on macOS)
+    npm run dist:win      # NSIS installer (needs Windows, or wine on Linux)
 
-    npm run tw:build
-    npm run dist
+Artifacts land in `dist/`. Tailwind is rebuilt automatically by each script.
 
-Artifacts for your platform will appear in `dist/`.
+### Cross-building from Linux
+
+| Target | From Linux |
+|---|---|
+| Linux AppImage / tar.gz | ✅ native |
+| Linux .deb / .rpm | needs `libxcrypt-compat` (`npm run dist:linux:packages`) |
+| macOS **.zip** (`.app` inside) | ✅ `electron-builder --mac zip --x64 --arm64` |
+| macOS **.dmg** | ❌ macOS only — `dmg-license` will not install elsewhere |
+| Windows **.zip** | ✅ `electron-builder --win zip -c.win.signAndEditExecutable=false` |
+| Windows **NSIS installer** | needs `wine` |
+
+Nothing produced off-platform is code-signed. A macOS build made on Linux is
+unsigned, so Gatekeeper quarantines it — users must clear the attribute:
+
+    xattr -cr /Applications/Echo.app
 
 ---
 
@@ -106,17 +212,23 @@ Artifacts for your platform will appear in `dist/`.
 
     .
     ├─ main.js             # Electron main process (ESM)
+    ├─ secrets.js          # API-key storage w/ keychain → safeStorage → file
+    ├─ autopaste.js        # Optional paste-back into the focused app
     ├─ preload.cjs         # Preload (CommonJS) exposing window.api
-    ├─ config.json         # Runtime settings (copy from config.example.json)
+    ├─ assets/             # Tray + app icons
+    ├─ linux/              # Compositor configs & Linux notes
     ├─ src/
     │  ├─ renderer.html    # UI shell
     │  ├─ renderer.js      # UI logic & actions
     │  ├─ tw.css           # Tailwind entry (source)
     │  └─ styles.css       # Generated by Tailwind (do not edit)
-    └─ providers/
-       ├─ providerManager.js
-       ├─ openai.js
-       └─ ollama.js
+    ├─ providers/
+    │  ├─ providerManager.js
+    │  ├─ stream.js        # SSE / NDJSON incremental readers
+    │  ├─ openai.js
+    │  ├─ gemini.js
+    │  └─ ollama.js
+    └─ test/               # npm test
 
 ---
 
@@ -140,7 +252,10 @@ Artifacts for your platform will appear in `dist/`.
 
 - **Global hotkey doesn’t work**
 
-  - Change it in **Settings** (⚙︎) or edit `config.json` and restart.
+  - On **Wayland** this is expected — see [Linux / Wayland](#linux--wayland) and
+    bind your compositor to `echo-llm --toggle`.
+  - Otherwise another app may own the combination; pick a different one in
+    **Settings** (⚙︎).
 
 - **Ollama not responding**
   - Verify `ollama serve` is running and the model is pulled:
@@ -152,4 +267,5 @@ Artifacts for your platform will appear in `dist/`.
 
 - `contextIsolation: true` in the BrowserWindow
 - Minimal CSP in `renderer.html` (`script-src 'self'`)
-- API keys live in `.env` (never committed)
+- API keys live in the OS keychain, never in `config.json` or the repo
+- Single-instance lock; the CLI talks to the running instance over Electron IPC

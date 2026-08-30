@@ -1,3 +1,5 @@
+import { isAbort, readSSE } from "./stream.js";
+
 export async function runWithGemini({
   apiBase,
   apiKey,
@@ -5,16 +7,21 @@ export async function runWithGemini({
   system,
   inputText,
   imageData,
+  onDelta,
+  signal,
 }) {
   const base = (apiBase || "https://generativelanguage.googleapis.com").replace(
     /\/+$/,
     ""
   );
-  const url = `${base}/v1beta/models/${encodeURIComponent(
-    model
-  )}:generateContent`;
-  const parts = [];
+  const stream = typeof onDelta === "function";
+  const method = stream ? "streamGenerateContent" : "generateContent";
+  const query = stream
+    ? `?alt=sse&key=${encodeURIComponent(apiKey)}`
+    : `?key=${encodeURIComponent(apiKey)}`;
+  const url = `${base}/v1beta/models/${encodeURIComponent(model)}:${method}${query}`;
 
+  const parts = [];
   if (inputText && inputText.trim()) parts.push({ text: inputText });
   if (imageData) {
     const { mimeType, b64 } = toInlineData(imageData);
@@ -29,25 +36,36 @@ export async function runWithGemini({
     body.systemInstruction = { role: "system", parts: [{ text: system }] };
   }
 
-  const res = await fetch(`${url}?key=${encodeURIComponent(apiKey)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
 
-  if (!res.ok) {
-    const txt = await res.text();
-    return { error: `HTTP ${res.status}: ${txt}` };
+    if (!res.ok) {
+      const txt = await res.text();
+      return { error: `HTTP ${res.status}: ${txt}` };
+    }
+
+    const pick = (j) =>
+      (j.candidates?.[0]?.content?.parts || [])
+        .map((p) => p.text)
+        .filter(Boolean)
+        .join("");
+
+    if (!stream) {
+      const json = await res.json();
+      return { text: pick(json).trim() };
+    }
+
+    const text = await readSSE(res, pick, onDelta);
+    return { text: text.trim() };
+  } catch (e) {
+    if (isAbort(e)) return { aborted: true, text: "" };
+    return { error: e?.message || String(e) };
   }
-
-  const json = await res.json();
-  const text = (json.candidates?.[0]?.content?.parts || [])
-    .map((p) => p.text)
-    .filter(Boolean)
-    .join("")
-    .trim();
-
-  return { text };
 }
 
 function toInlineData(dataUrlOrB64) {

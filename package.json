@@ -10,7 +10,15 @@
     "pack": "electron-builder --dir",
     "dist": "npm run tw:build && electron-builder",
     "tw:dev": "tailwindcss -i ./src/tw.css -o ./src/styles.css --watch",
-    "tw:build": "tailwindcss -i ./src/tw.css -o ./src/styles.css --minify"
+    "tw:build": "tailwindcss -i ./src/tw.css -o ./src/styles.css --minify",
+    "dist:linux": "npm run tw:build && electron-builder --linux",
+    "dist:mac": "npm run tw:build && electron-builder --mac",
+    "dist:win": "npm run tw:build && electron-builder --win",
+    "test": "npm run test:stream && npm run test:env && npm run test:ui",
+    "test:stream": "node test/stream.test.mjs",
+    "test:env": "electron test/env.test.mjs",
+    "test:ui": "electron test/ui.test.mjs",
+    "dist:linux:packages": "npm run tw:build && electron-builder --linux deb rpm"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -28,19 +36,70 @@
     "productName": "Echo",
     "files": [
       "main.js",
+      "secrets.js",
+      "autopaste.js",
       "preload.cjs",
-      "config.json",
       "src/**/*",
-      "providers/**/*"
+      "providers/**/*",
+      "assets/**/*"
     ],
     "mac": {
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/icon.png"
     },
     "linux": {
-      "target": "AppImage"
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Utility;Office;",
+      "executableName": "echo-llm",
+      "synopsis": "Spotlight-style launcher for quick LLM actions",
+      "desktop": {
+        "Name": "Echo",
+        "Comment": "Spotlight-style launcher for quick LLM actions",
+        "Categories": "Utility;Office;",
+        "Keywords": "llm;ai;translate;proofread;summarize;",
+        "StartupWMClass": "echo"
+      }
+    },
+    "extraMetadata": {
+      "main": "main.js"
+    },
+    "deb": {
+      "depends": [
+        "libsecret-1-0",
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils"
+      ]
+    },
+    "rpm": {
+      "depends": [
+        "libsecret"
+      ]
     }
+  },
+  "description": "A Spotlight-style launcher for quick LLM actions.",
+  "author": {
+    "name": "Einari Kurvinen",
+    "email": "einari.kurvinen@gmail.com"
   }
 }
