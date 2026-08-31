@@ -23,6 +23,7 @@ const __dirname = dirname(__filename);
 
 let blurIgnoreUntil = 0;
 let win;
+let settingsWin = null;
 let tray;
 let CONFIG_PATH;
 let activeHotkey = null; // what we actually managed to grab, or null
@@ -361,6 +362,8 @@ function createWindow() {
     if (config.hideOnBlur === false) return;
     if (win?.webContents.isDevToolsOpened()) return;
     if (Date.now() < blurIgnoreUntil) return; // ignore transient blur
+    // Settings is a separate window; focusing it must not dismiss the launcher.
+    if (settingsWindowOpen()) return;
     win?.hide();
   });
 
@@ -370,6 +373,79 @@ function createWindow() {
 function ensureWindow() {
   if (!win || win.isDestroyed()) createWindow();
   return win;
+}
+
+// ---------- settings window ----------
+// Settings gets its own BrowserWindow rather than a <dialog> in the launcher.
+// A dialog is clipped to its host, and the launcher is intentionally ~360px
+// tall, which left the panel unusable — Close and Save sat below the edge.
+function createSettingsWindow() {
+  const wa = displayForWindow(win?.getBounds()).workArea;
+
+  settingsWin = new BrowserWindow({
+    width: Math.min(900, Math.floor(wa.width * 0.9)),
+    height: Math.min(860, Math.floor(wa.height * 0.9)),
+    minWidth: 560,
+    minHeight: 400,
+    resizable: true,
+    useContentSize: true,
+    // Frameless to match the launcher; the page draws its own header, which is
+    // a drag handle, plus Close/Save and an Escape binding.
+    frame: false,
+    backgroundColor: "#18181b",
+    show: false,
+    title: "Echo Settings",
+    icon: trayIconPath("app"),
+    webPreferences: {
+      preload: resolveInApp("preload.cjs"),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  settingsWin.loadFile(resolveInApp("src", "settings.html"));
+
+  if (process.env.ECHO_DEBUG) {
+    settingsWin.webContents.on("console-message", (_e, level, message, line, source) => {
+      console.log(`[settings:${level}] ${message} (${source}:${line})`);
+    });
+  }
+
+  // Hide rather than destroy, so reopening is instant and state survives.
+  settingsWin.on("close", (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      settingsWin.hide();
+    }
+  });
+
+  return settingsWin;
+}
+
+function openSettingsWindow() {
+  if (!settingsWin || settingsWin.isDestroyed()) createSettingsWindow();
+
+  // The launcher hides on blur, and opening settings blurs it. Keep it up, so
+  // closing settings returns the user to the window they came from.
+  blurIgnoreUntil = Date.now() + 500;
+
+  const show = () => {
+    settingsWin.show();
+    settingsWin.focus();
+    settingsWin.webContents.send("settings:shown");
+  };
+  if (settingsWin.webContents.isLoading()) settingsWin.webContents.once("did-finish-load", show);
+  else show();
+}
+
+function settingsWindowOpen() {
+  return !!settingsWin && !settingsWin.isDestroyed() && settingsWin.isVisible();
+}
+
+// Config is edited in the settings window but rendered in the launcher, so the
+// launcher has to be told when it changes.
+function broadcastConfig() {
+  if (win && !win.isDestroyed()) win.webContents.send("config:changed", { ...config });
 }
 
 // Wayland refuses programmatic window placement, so setPosition is a no-op
@@ -513,7 +589,7 @@ function createTray() {
       { label: "Translate clipboard → English", click: () => openWindow({ action: "translate_en" }) },
       { label: "Summarize clipboard", click: () => openWindow({ action: "summarize" }) },
       { type: "separator" },
-      { label: "Settings…", click: () => { openWindow(); win.webContents.send("app:openSettings"); } },
+      { label: "Settings…", click: () => openSettingsWindow() },
       { label: "Show config folder", click: () => shell.showItemInFolder(CONFIG_PATH) },
       { type: "separator" },
       { label: "Quit Echo", click: () => { app.isQuitting = true; app.quit(); } },
@@ -625,6 +701,7 @@ ipcMain.handle("config:set", (_e, next) => {
     } catch {}
     tray = createTray();
   }
+  broadcastConfig();
   return { ok: true, config, hotkey: activeHotkey };
 });
 
@@ -648,6 +725,7 @@ ipcMain.handle("providers:setDefault", (_e, id) => {
     return { ok: false, error: "Provider not found" };
   config.defaultProviderId = id;
   saveConfig();
+  broadcastConfig();
   return { ok: true };
 });
 
@@ -675,6 +753,7 @@ ipcMain.handle("providers:save", async (_e, prov) => {
 
   if (!config.defaultProviderId) config.defaultProviderId = id;
   saveConfig();
+  broadcastConfig();
   return { ok: true, provider: normalized };
 });
 
@@ -688,6 +767,7 @@ ipcMain.handle("providers:delete", async (_e, id) => {
     config.defaultProviderId = config.providers[0]?.id || null;
   }
   saveConfig();
+  broadcastConfig();
   return { ok: true };
 });
 
@@ -726,50 +806,13 @@ ipcMain.handle("window:resizeTo", (_e, { height, width, margin = 80 }) => {
   return { ok: true, size: { width: targetW, height: targetH } };
 });
 
-// Settings lives in a <dialog>, so it can never be taller than the window
-// hosting it — on the launcher's ~320px frame that clipped it to a slit. Blow
-// the window up to most of the work area while a panel is open, and put the
-// old geometry back when it closes.
-let preModalBounds = null;
+ipcMain.handle("settings:open", () => {
+  openSettingsWindow();
+  return { ok: true };
+});
 
-ipcMain.handle("window:modal", (_e, { open } = {}) => {
-  if (!win || win.isDestroyed()) return { ok: false, error: "no window" };
-
-  if (!open) {
-    const prev = preModalBounds;
-    preModalBounds = null;
-    if (prev) {
-      win.setContentSize(prev.width, prev.height);
-      if (!IS_WAYLAND) {
-        try {
-          win.setPosition(prev.x, prev.y);
-        } catch {}
-      }
-    }
-    return { ok: true };
-  }
-
-  const bounds = win.getBounds();
-  const [cw, ch] = win.getContentSize();
-  if (!preModalBounds) {
-    preModalBounds = { width: cw, height: ch, x: bounds.x, y: bounds.y };
-  }
-
-  const chrome = bounds.height - ch; // frameless → ~0
-  const wa = displayForWindow(bounds).workArea;
-  const targetW = Math.max(cw, Math.min(960, Math.floor(wa.width * 0.9)));
-  const targetH = Math.max(320, Math.floor(wa.height * 0.9) - chrome);
-
-  win.setContentSize(targetW, targetH);
-  if (!IS_WAYLAND) {
-    try {
-      win.setPosition(
-        Math.round(wa.x + (wa.width - targetW) / 2),
-        Math.round(wa.y + (wa.height - (targetH + chrome)) / 2)
-      );
-    } catch {}
-  }
-  return { ok: true, size: { width: targetW, height: targetH } };
+ipcMain.on("settings:close", () => {
+  if (settingsWin && !settingsWin.isDestroyed()) settingsWin.hide();
 });
 
 // Only one generation runs at a time; starting a new one supersedes the old.

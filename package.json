@@ -14,11 +14,12 @@
     "dist:linux": "npm run tw:build && electron-builder --linux",
     "dist:mac": "npm run tw:build && electron-builder --mac",
     "dist:win": "npm run tw:build && electron-builder --win",
-    "test": "npm run test:stream && npm run test:env && npm run test:ui",
+    "test": "npm run test:stream && npm run test:env && npm run test:ui && npm run test:window",
     "test:stream": "node test/stream.test.mjs",
     "test:env": "electron test/env.test.mjs",
     "test:ui": "electron test/ui.test.mjs",
-    "dist:linux:packages": "npm run tw:build && electron-builder --linux deb rpm"
+    "dist:linux:packages": "npm run tw:build && electron-builder --linux deb rpm",
+    "test:window": "electron test/window.test.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

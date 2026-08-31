@@ -3,7 +3,13 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("api", {
   // Main → renderer
   onOpened: (cb) => ipcRenderer.on("app:opened", (_e, payload) => cb(payload)),
-  onOpenSettings: (cb) => ipcRenderer.on("app:openSettings", () => cb()),
+
+  // Settings is a separate window, so the launcher learns about config edits
+  // through a broadcast rather than by owning the form itself.
+  openSettings: () => ipcRenderer.invoke("settings:open"),
+  closeSettings: () => ipcRenderer.send("settings:close"),
+  onConfigChanged: (cb) => ipcRenderer.on("config:changed", (_e, cfg) => cb(cfg)),
+  onSettingsShown: (cb) => ipcRenderer.on("settings:shown", () => cb()),
 
   // Environment / diagnostics (platform, Wayland, hotkey state, key storage)
   getInfo: () => ipcRenderer.invoke("app:info"),
@@ -37,7 +43,4 @@ contextBridge.exposeInMainWorld("api", {
 contextBridge.exposeInMainWorld("winCtl", {
   resizeTo: (height, width) =>
     ipcRenderer.invoke("window:resizeTo", { height, width }),
-
-  // Grow the window while a full-size panel (settings) is open, restore after.
-  modal: (open) => ipcRenderer.invoke("window:modal", { open }),
 });

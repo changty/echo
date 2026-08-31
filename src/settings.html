@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Echo — Settings</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="text-zinc-100">
+    <!-- Settings is its own window, not a <dialog> inside the launcher: a dialog
+         can never be taller than its host, and the launcher is deliberately tiny. -->
+    <div id="settings-shell" class="flex flex-col h-full bg-zinc-900">
+      <!-- Frameless window, so the header doubles as the drag handle. -->
+      <header
+        id="settings-bar"
+        class="drag flex items-center justify-between gap-3 px-5 py-3 border-b border-white/10 shrink-0"
+      >
+        <h3 class="text-base font-semibold">Echo Settings</h3>
+        <span class="text-xs text-zinc-500">Esc to close</span>
+      </header>
+
+      <div
+        id="settings-error"
+        hidden
+        class="no-drag mx-5 mt-3 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-100 shrink-0"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div id="settings-error-text" class="leading-5 break-words"></div>
+          <button id="settings-error-dismiss" class="btn shrink-0 py-0.5" type="button">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- The one scroll container in the window. -->
+      <div id="settings-body" class="no-drag flex-1 min-h-0 overflow-y-auto px-5 py-4">
+    <form id="settingsForm" class="space-y-3">
+      <h3 class="text-base font-semibold">Settings</h3>
+
+      <label class="flex flex-col gap-1.5 text-sm"
+        >Global Hotkey
+        <input
+          id="s-hotkey"
+          placeholder="Alt+Space"
+          class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+        />
+      </label>
+
+      <label class="flex flex-col gap-1.5 text-sm"
+        >Default Provider
+        <select
+          id="s-defaultProvider"
+          class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+        ></select>
+      </label>
+
+      <label class="flex flex-col gap-1.5 text-sm"
+        >Target language (default for the “To…” action)
+        <input
+          id="s-targetLang"
+          placeholder="Finnish"
+          class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent/40"
+        />
+      </label>
+
+      <label class="flex items-center gap-2 text-sm mt-1">
+        <input id="s-hideOnBlur" type="checkbox" class="accent-accent" />
+        <span>
+          Hide when the window loses focus
+          <span class="block text-xs text-zinc-400"
+            >Turn this off on Linux WMs with focus-follows-mouse.</span
+          >
+        </span>
+      </label>
+
+      <label id="s-dock-row" class="flex items-center gap-2 text-sm" hidden>
+        <input id="s-hideDock" type="checkbox" class="accent-accent" />
+        <span>
+          Hide the Dock icon
+          <span class="block text-xs text-zinc-400"
+            >macOS only. Restart Echo to apply.</span
+          >
+        </span>
+      </label>
+
+      <!-- Auto-paste -->
+      <details class="mt-2 rounded-lg border border-white/10 p-3">
+        <summary class="cursor-pointer text-sm font-medium">
+          Auto-paste (off by default)
+        </summary>
+        <div class="mt-3 space-y-3">
+          <label class="flex items-center gap-2 text-sm">
+            <input id="s-autoPaste" type="checkbox" class="accent-accent" />
+            <span>
+              Paste the result back into the app you came from
+              <span class="block text-xs text-zinc-400"
+                >Echo hides itself, then sends a paste keystroke to whatever
+                window regains focus.</span
+              >
+            </span>
+          </label>
+          <p id="s-autoPaste-status" class="text-xs text-zinc-400"></p>
+          <label class="flex flex-col gap-1.5 text-sm"
+            >Custom paste command (optional)
+            <input
+              id="s-autoPasteCmd"
+              placeholder="e.g. ydotool key 29:1 47:1 47:0 29:0"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+            />
+            <span class="text-xs text-zinc-400"
+              >Overrides the built-in method. Runs through your shell.</span
+            >
+          </label>
+        </div>
+      </details>
+
+      <details id="s-linux" class="mt-2 rounded-lg border border-white/10 p-3">
+        <summary class="cursor-pointer text-sm font-medium">
+          Linux &amp; Wayland
+        </summary>
+        <div class="mt-3 space-y-3">
+          <p id="s-linux-hint" class="text-xs text-zinc-400"></p>
+
+          <label class="flex flex-col gap-1.5 text-sm"
+            >Display backend
+            <select
+              id="s-ozone"
+              class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+            >
+              <option value="">Default (XWayland — allows Electron hotkeys)</option>
+              <option value="auto">Native Wayland (sharper; use --toggle for hotkey)</option>
+              <option value="x11">Force X11</option>
+            </select>
+            <span class="text-xs text-zinc-400">Restart Echo to apply.</span>
+          </label>
+
+          <label class="flex items-center gap-2 text-sm">
+            <input id="s-portal" type="checkbox" class="accent-accent" />
+            <span>
+              Use the XDG global-shortcuts portal
+              <span class="block text-xs text-zinc-400"
+                >Experimental. Needs a portal that implements GlobalShortcuts.</span
+              >
+            </span>
+          </label>
+
+          <label class="flex items-center gap-2 text-sm">
+            <input id="s-opaque" type="checkbox" class="accent-accent" />
+            <span>
+              Disable window transparency
+              <span class="block text-xs text-zinc-400"
+                >Fixes a black rectangle on compositors without blur support.</span
+              >
+            </span>
+          </label>
+        </div>
+      </details>
+
+      <h4 class="mt-4 mb-2 font-semibold">Actions</h4>
+      <p class="text-xs text-zinc-400 -mt-1">
+        Each action is a prompt. The first nine get Ctrl/⌘+1…9.
+      </p>
+      <div id="action-list" class="space-y-2"></div>
+      <div class="flex gap-2 mt-2">
+        <button id="btn-add-action" class="btn" type="button">Add Action</button>
+        <button id="btn-reset-actions" class="btn" type="button">
+          Reset to defaults
+        </button>
+      </div>
+
+      <h4 class="mt-4 mb-2 font-semibold">Providers</h4>
+      <div id="prov-list" class="space-y-2 overflow-auto pr-1"></div>
+      <div class="flex flex-col justify-end mt-2 mb-8">
+        <button id="btn-add-provider" class="btn" type="button">
+          Add Provider
+        </button>
+      </div>
+
+      <p id="s-secrets" class="text-xs text-zinc-400"></p>
+    </form>
+      </div>
+
+      <!-- Pinned, so Close/Save are reachable no matter how long the form gets. -->
+      <footer
+        class="no-drag flex justify-end gap-2 px-5 py-3 border-t border-white/10 bg-zinc-900 shrink-0"
+      >
+        <button type="button" class="btn" id="settingsClose">Close</button>
+        <button id="saveSettings" class="btn" type="button">Save</button>
+      </footer>
+    </div>
+
+  <!-- Action editor -->
+  <dialog
+    id="actionDlg"
+    class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-5 w-[600px]"
+  >
+    <form id="actionForm" class="space-y-2">
+      <input id="a-origId" type="hidden" />
+      <h3 class="text-base font-semibold">Action</h3>
+
+      <label class="flex flex-col gap-1.5 text-sm"
+        >Label
+        <input
+          id="a-label"
+          placeholder="Summarize"
+          class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+        />
+      </label>
+
+      <label class="flex flex-col gap-1.5 text-sm"
+        >Id
+        <input
+          id="a-id"
+          placeholder="summarize"
+          class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+        />
+        <span class="text-xs text-zinc-400"
+          >Used by <code>echo-llm --action=&lt;id&gt;</code>.</span
+        >
+      </label>
+
+      <label class="flex flex-col gap-1.5 text-sm"
+        >Prompt
+        <textarea
+          id="a-prompt"
+          rows="5"
+          placeholder="Rewrite the user's text so that…"
+          class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100 resize-y"
+        ></textarea>
+      </label>
+
+      <label class="flex items-center gap-2 text-sm">
+        <input id="a-hasInput" type="checkbox" class="accent-accent" />
+        <span>Ask me something before running</span>
+      </label>
+
+      <div id="a-input-rows" class="space-y-2 hidden">
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Question
+          <input
+            id="a-inputTitle"
+            placeholder="Rewrite in which style?"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+        </label>
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Hint
+          <input
+            id="a-inputHelp"
+            placeholder="e.g., formal, friendly"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+        </label>
+        <label class="flex flex-col gap-1.5 text-sm"
+          >Label sent to the model
+          <input
+            id="a-inputHeader"
+            placeholder="Style"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+          <span class="text-xs text-zinc-400"
+            >Prepended to the text as “Label: your answer”.</span
+          >
+        </label>
+      </div>
+
+      <menu class="flex justify-end gap-2 mt-3">
+        <button type="button" id="actionCancelBtn" class="btn">Cancel</button>
+        <button id="actionSaveBtn" type="submit" class="btn">Save Action</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <!-- Provider Editor -->
+  <dialog
+    id="providerDlg"
+    class="border border-white/15 bg-zinc-900/95 text-zinc-100 rounded-2xl p-5 w-[560px]"
+  >
+    <form id="providerForm" class="space-y-2">
+      <input id="p-id" type="hidden" />
+
+      <label class="flex flex-col gap-1.5 text-sm"
+        >Label
+        <input
+          id="p-label"
+          class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+        />
+      </label>
+
+      <label class="flex flex-col gap-1.5 text-sm"
+        >Type
+        <select
+          id="p-type"
+          class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+        >
+          <option value="openai">OpenAI</option>
+          <option value="openaiCompatible">OpenAI-Compatible</option>
+          <option value="ollama">Ollama</option>
+          <option value="gemini">Gemini</option>
+        </select>
+      </label>
+
+      <div id="p-row-apiBase" class="flex flex-col gap-1.5 text-sm">
+        <label
+          >API Base
+          <input
+            id="p-apiBase"
+            placeholder="https://api.openai.com/v1"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+        </label>
+      </div>
+
+      <div id="p-row-apiKey" class="flex flex-col gap-1.5 text-sm">
+        <label
+          >API Key
+          <input
+            id="p-apiKey"
+            type="password"
+            placeholder="leave blank to keep the stored key"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+        </label>
+      </div>
+
+      <div id="p-row-host" class="flex flex-col gap-1.5 text-sm hidden">
+        <label
+          >Host (Ollama)
+          <input
+            id="p-host"
+            placeholder="http://localhost:11434"
+            class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+          />
+        </label>
+      </div>
+
+      <label class="flex flex-col gap-1.5 text-sm"
+        >Model
+        <input
+          id="p-model"
+          placeholder="gpt-4o-mini / gemma3:27b"
+          class="px-2.5 py-2 rounded-lg bg-white/10 border border-white/10 text-zinc-100"
+        />
+      </label>
+
+      <menu class="flex justify-end gap-2 mt-3">
+        <button type="button" id="providerCancelBtn" class="btn">Cancel</button>
+        <button id="providerSaveBtn" type="submit" class="btn">Save Provider</button>
+      </menu>
+    </form>
+  </dialog>
+
+    <script type="module" src="settings.js"></script>
+  </body>
+</html>

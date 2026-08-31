@@ -424,10 +424,28 @@ body {
   background-clip: content-box;
 }
 
-/* The legacy block above pins this at 560px, which beats the w-[800px] class
-   on specificity. Settings has outgrown that. */
-dialog#settings {
-  width: min(860px, 92vw);
-  max-height: 92vh;
-  padding: 20px;
+/* ---- Settings window (src/settings.html) ----
+   Frameless, so the header is the drag handle. Everything interactive inside it
+   has to opt back out, or the window moves instead of the click landing. */
+#settings-shell {
+  background: #18181b;
+}
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag,
+.drag button,
+.drag input,
+.drag select,
+.drag textarea {
+  -webkit-app-region: no-drag;
+}
+
+/* The legacy raw CSS above still pins dialog#settings at 560px by id
+   specificity; the action and provider editors need the same escape. */
+dialog#actionDlg,
+dialog#providerDlg {
+  width: min(600px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
 }

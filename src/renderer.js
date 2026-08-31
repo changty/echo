@@ -9,6 +9,8 @@ const providerEl = $("provider");
 const footer = $("footer");
 const bar = $("bar");
 const content = $("content");
+const contentInner = $("content-inner");
+const shell = $("shell");
 
 const banner = $("platform-banner");
 const bannerText = $("banner-text");
@@ -25,31 +27,9 @@ const btnRetry = $("btn-retry");
 const btnCopy = $("btn-copy");
 const btnPaste = $("btn-paste");
 
-const settingsDlg = $("settings");
-const sHotkey = $("s-hotkey");
-const sTargetLang = $("s-targetLang");
-const sHideOnBlur = $("s-hideOnBlur");
-const sHideDock = $("s-hideDock");
-const sDockRow = $("s-dock-row");
-const sAutoPaste = $("s-autoPaste");
-const sAutoPasteCmd = $("s-autoPasteCmd");
-const sAutoPasteStatus = $("s-autoPaste-status");
-const sOzone = $("s-ozone");
-const sPortal = $("s-portal");
-const sOpaque = $("s-opaque");
-const sLinux = $("s-linux");
-const sLinuxHint = $("s-linux-hint");
-const sSecrets = $("s-secrets");
-const sDefaultProvider = $("s-defaultProvider");
-const provList = $("prov-list");
-const actionList = $("action-list");
-
 const palette = $("palette");
 const paletteInput = $("palette-input");
 const paletteList = $("palette-list");
-
-const actionDlg = $("actionDlg");
-const providerDlg = $("providerDlg");
 
 // ---------- state ----------
 let cfg = null;
@@ -82,41 +62,33 @@ function autoGrowTextarea() {
   input.style.height = `${input.scrollHeight}px`;
 }
 
-function visibleHeight(el) {
-  return el && !el.hidden ? el.offsetHeight || 0 : 0;
+// Summing the individual rows used to undercount by ~20px — margins, the
+// textarea's borders (scrollHeight excludes them) and #content's own padding all
+// went missing, so the window came up a hair too short and Linux drew a
+// permanent scrollbar. Measure the laid-out boxes instead: #content-inner's
+// natural height is exact by construction, and unlike #content (which flexbox
+// stretches) it shrinks back down when the text does.
+function verticalPadding(el) {
+  const cs = getComputedStyle(el);
+  return parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
 }
 
 function desiredContentHeight() {
   autoGrowTextarea();
-  const innerPad = 16;
-  const extra = 50;
   return Math.ceil(
-    (bar?.offsetHeight || 0) +
-      input.scrollHeight +
-      visibleHeight(imgWrap) +
-      visibleHeight(banner) +
-      visibleHeight(onboarding) +
-      visibleHeight(errorBox) +
-      visibleHeight(viewbar) +
-      (footer?.offsetHeight || 0) +
-      innerPad +
-      extra +
-      12
+    verticalPadding(shell) +
+      (bar?.offsetHeight || 0) +
+      verticalPadding(content) +
+      contentInner.getBoundingClientRect().height +
+      2 // guard against sub-pixel rounding on fractional display scaling
   );
 }
 
 let lastSent = 0;
 let resizeTimer;
-
-// While settings is open the window is deliberately oversized (see
-// winCtl.modal), so content-driven autosizing has to stand down or it would
-// immediately shrink the window back around the launcher.
-let modalOpen = false;
-
 function scheduleResize() {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    if (modalOpen) return;
     const h = desiredContentHeight();
     if (Math.abs(h - lastSent) < 2) return;
     window.winCtl?.resizeTo(h);
@@ -133,7 +105,7 @@ input.addEventListener("input", () => {
 });
 
 const ro = new ResizeObserver(() => scheduleResize());
-ro.observe(content);
+ro.observe(contentInner);
 ro.observe(input);
 ro.observe(imgWrap);
 
@@ -414,11 +386,16 @@ function applyPayload(p) {
   // A fresh open starts a fresh document.
   hasResult = false;
   resultText = "";
-  view = "original";
-  viewbar.hidden = true;
+  running = false;
+  activeRunId = null;
   clearError();
 
-  if (p.text) input.value = p.text;
+  // Echo's document is disposable: opening it always starts over from the
+  // clipboard. Keeping the old text when the clipboard is empty stranded the
+  // previous *result* in the box, which then had to be cleared by hand before
+  // the next job. Re-pasting identical text is a no-op, so always replacing
+  // costs nothing.
+  input.value = p.text || "";
   originalText = input.value;
 
   imageData = p.imageData || null;
@@ -429,6 +406,8 @@ function applyPayload(p) {
     imgEl.src = "";
     imgWrap.hidden = true;
   }
+  setBusy(false);
+  setView("original");
   autoGrowTextarea();
   requestAnimationFrame(() => scheduleResize());
   input.focus();
@@ -541,328 +520,24 @@ paletteInput.addEventListener("keydown", (e) => {
 palette.addEventListener("close", () => setTimeout(scheduleResize, 10));
 
 // ---------- settings ----------
+// Settings is a separate BrowserWindow (src/settings.html). It used to be a
+// <dialog> in here, which meant it could never be taller than the launcher.
+function openSettings() {
+  window.api.openSettings();
+}
 $("btn-settings").onclick = () => openSettings();
 $("onboard-open").onclick = () => openSettings();
-$("settingsClose")?.addEventListener("click", () => settingsDlg.close());
-settingsDlg.addEventListener("close", async () => {
-  modalOpen = false;
-  await window.winCtl?.modal(false);
-  lastSent = 0; // the window moved under us; don't skip the next resize
-  setTimeout(scheduleResize, 10);
-});
 $("promptDlg").addEventListener("close", () => setTimeout(scheduleResize, 10));
 
-async function openSettings() {
-  if (settingsDlg.open) return; // showModal() throws on an already-open dialog
-  cfg = await window.api.getConfig();
-  appInfo = await window.api.getInfo();
-
-  sHotkey.value = cfg.hotkey || "";
-  sTargetLang.value = cfg.targetLang || "";
-  sHideOnBlur.checked = cfg.hideOnBlur !== false;
-  sOzone.value = cfg.ozonePlatform || "";
-  sPortal.checked = !!cfg.useGlobalShortcutsPortal;
-  sOpaque.checked = !!cfg.disableTransparency;
-  sHideDock.checked = !!cfg.hideDockIcon;
-  sAutoPaste.checked = !!cfg.autoPaste?.enabled;
-  sAutoPasteCmd.value = cfg.autoPaste?.command || "";
-
-  sDockRow.hidden = !appInfo.isMac;
-  sLinux.hidden = !appInfo.isLinux;
-  if (appInfo.isLinux) {
-    sLinuxHint.textContent = appInfo.isWayland
-      ? "Wayland session detected. Electron's global hotkey is an X11 grab, so it only fires while an X11 window has focus. Bind your compositor to `echo-llm --toggle` for a hotkey that always works."
-      : "X11 session detected. Global hotkeys should work normally.";
-  }
-
-  const ap = appInfo.autoPaste || {};
-  sAutoPasteStatus.textContent = ap.available
-    ? `Ready — will use \`${ap.tool}\`.`
-    : ap.hint || "No supported paste tool found.";
-  sAutoPasteStatus.className = ap.available
-    ? "text-xs text-zinc-400"
-    : "text-xs text-amber-300";
-
-  sSecrets.textContent = `API keys are stored in: ${appInfo.secrets?.label || "unknown"}.`;
-  sSecrets.className = appInfo.secrets?.secure
-    ? "text-xs text-zinc-400"
-    : "text-xs text-amber-300";
-
-  renderActionList();
-  await refreshProvidersUI();
-
-  // A <dialog> is clipped to its host window, so make room before showing it.
-  modalOpen = true;
-  await window.winCtl?.modal(true);
-  settingsDlg.showModal();
-}
-
-$("saveSettings")?.addEventListener("click", async (e) => {
-  e.preventDefault();
-  const next = {
-    hotkey: sHotkey.value,
-    targetLang: sTargetLang.value,
-    hideOnBlur: sHideOnBlur.checked,
-    hideDockIcon: sHideDock.checked,
-    ozonePlatform: sOzone.value,
-    useGlobalShortcutsPortal: sPortal.checked,
-    disableTransparency: sOpaque.checked,
-    autoPaste: {
-      enabled: sAutoPaste.checked,
-      command: sAutoPasteCmd.value.trim(),
-    },
-    actions,
-  };
-  const restartKeys = ["ozonePlatform", "disableTransparency", "hideDockIcon"];
-  const needsRestart = restartKeys.some((k) => next[k] !== (cfg?.[k] ?? (k === "ozonePlatform" ? "" : false)));
-
-  const res = await window.api.setConfig(next);
-  if (!res?.ok) return showError("Could not save settings");
-
-  cfg = res.config;
+// The settings window owns the config now, so pick its changes up here.
+window.api.onConfigChanged?.(async (next) => {
+  cfg = next || (await window.api.getConfig());
   actions = cfg.actions || [];
+  if (!actionById(currentActionId)) currentActionId = actions[0]?.id || null;
   renderActionButtons();
   await applyFooterProviderLabel();
   await refreshPlatformBanner();
   setView(view);
-  settingsDlg.close();
-  flash(needsRestart ? "Saved — restart Echo to apply" : "Settings saved");
-});
-
-// ---------- action editor ----------
-function renderActionList() {
-  actionList.innerHTML = "";
-  actions.forEach((a, i) => {
-    const row = document.createElement("div");
-    row.className =
-      "flex items-center justify-between border border-white/10 rounded-lg px-3 py-2 bg-white/5 gap-2";
-
-    const meta = document.createElement("div");
-    meta.className = "text-sm min-w-0";
-    meta.innerHTML = `<div class="font-medium">${escapeHtml(a.label)} ${
-      i < 9 ? `<span class="text-xs text-zinc-500">Mod+${i + 1}</span>` : ""
-    }</div>
-      <div class="text-xs text-zinc-400 truncate">${escapeHtml(a.prompt || "")}</div>`;
-
-    const acts = document.createElement("div");
-    acts.className = "flex gap-1 shrink-0";
-
-    const mk = (label, fn, title) => {
-      const b = document.createElement("button");
-      b.className = "btn py-0.5";
-      b.type = "button";
-      b.textContent = label;
-      if (title) b.title = title;
-      b.onclick = (e) => {
-        e.preventDefault();
-        fn();
-      };
-      return b;
-    };
-
-    acts.append(
-      mk("↑", () => moveAction(i, -1), "Move up"),
-      mk("↓", () => moveAction(i, 1), "Move down"),
-      mk("Edit", () => openActionEditor(a)),
-      mk("Delete", () => {
-        if (actions.length === 1) return showError("Keep at least one action.");
-        if (!confirm(`Delete action "${a.label}"?`)) return;
-        actions.splice(i, 1);
-        renderActionList();
-      })
-    );
-
-    row.append(meta, acts);
-    actionList.appendChild(row);
-  });
-}
-
-function moveAction(i, dir) {
-  const j = i + dir;
-  if (j < 0 || j >= actions.length) return;
-  [actions[i], actions[j]] = [actions[j], actions[i]];
-  renderActionList();
-}
-
-function openActionEditor(a = null) {
-  $("a-origId").value = a?.id || "";
-  $("a-label").value = a?.label || "";
-  $("a-id").value = a?.id || "";
-  $("a-prompt").value = a?.prompt || "";
-  $("a-hasInput").checked = !!a?.input;
-  $("a-inputTitle").value = a?.input?.title || "";
-  $("a-inputHelp").value = a?.input?.help || "";
-  $("a-inputHeader").value = a?.input?.header || "";
-  $("a-input-rows").classList.toggle("hidden", !a?.input);
-  actionDlg.showModal();
-}
-
-$("a-hasInput").addEventListener("change", (e) => {
-  $("a-input-rows").classList.toggle("hidden", !e.target.checked);
-});
-$("actionCancelBtn").onclick = () => actionDlg.close();
-$("btn-add-action").onclick = (e) => {
-  e.preventDefault();
-  openActionEditor(null);
-};
-$("btn-reset-actions").onclick = async (e) => {
-  e.preventDefault();
-  if (!confirm("Replace all actions with the defaults?")) return;
-  const res = await window.api.setConfig({ actions: null });
-  cfg = res.config;
-  actions = cfg.actions || [];
-  renderActionList();
-  renderActionButtons();
-};
-
-$("actionForm").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const origId = $("a-origId").value;
-  const label = $("a-label").value.trim() || "Action";
-  const id =
-    ($("a-id").value.trim() || label.toLowerCase().replace(/[^a-z0-9]+/g, "_")).replace(
-      /^_+|_+$/g,
-      ""
-    ) || "action";
-  const prompt = $("a-prompt").value.trim();
-  if (!prompt) return showError("An action needs a prompt.");
-
-  if (actions.some((a) => a.id === id && a.id !== origId)) {
-    return showError(`An action with id "${id}" already exists.`);
-  }
-
-  const next = { id, label, prompt };
-  if ($("a-hasInput").checked) {
-    next.input = {
-      key: id,
-      header: $("a-inputHeader").value.trim() || "Input",
-      title: $("a-inputTitle").value.trim() || "Input",
-      help: $("a-inputHelp").value.trim(),
-    };
-  }
-
-  const idx = actions.findIndex((a) => a.id === origId);
-  if (idx >= 0) actions[idx] = { ...actions[idx], ...next, input: next.input };
-  else actions.push(next);
-
-  actionDlg.close();
-  renderActionList();
-});
-
-// ---------- providers ----------
-const pType = $("p-type");
-function showProviderRowsForType(type) {
-  const isOllama = type === "ollama";
-  $("p-row-host").classList.toggle("hidden", !isOllama);
-  $("p-row-apiBase").classList.toggle("hidden", isOllama);
-  $("p-row-apiKey").classList.toggle("hidden", isOllama);
-}
-pType.addEventListener("change", () => showProviderRowsForType(pType.value));
-
-async function refreshProvidersUI() {
-  const { providers, defaultProviderId } = await window.api.listProviders();
-
-  sDefaultProvider.innerHTML = "";
-  for (const p of providers) {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = `${p.label} (${p.type})`;
-    if (p.id === defaultProviderId) opt.selected = true;
-    sDefaultProvider.appendChild(opt);
-  }
-
-  provList.innerHTML = "";
-  for (const p of providers) {
-    const row = document.createElement("div");
-    row.className =
-      "flex items-center justify-between border border-white/10 rounded-lg px-3 py-2 bg-white/5";
-
-    // Ollama and local gateways legitimately need no key.
-    const needsKey = p.type === "openai" || p.type === "gemini";
-    const keyBadge = p.hasKey
-      ? '<span class="text-emerald-400">key saved</span>'
-      : needsKey
-      ? '<span class="text-amber-400">no key</span>'
-      : '<span class="text-zinc-500">no key needed</span>';
-
-    const meta = document.createElement("div");
-    meta.className = "text-sm";
-    meta.innerHTML = `<div class="font-medium">${escapeHtml(p.label)}</div>
-      <div class="text-xs text-zinc-400">${escapeHtml(p.type)} · ${escapeHtml(
-      p.model || ""
-    )} · ${escapeHtml(p.type === "ollama" ? p.host || "" : p.apiBase || "")} · ${keyBadge}</div>`;
-
-    const actionsEl = document.createElement("div");
-    actionsEl.className = "flex gap-2";
-
-    const editBtn = document.createElement("button");
-    editBtn.className = "btn";
-    editBtn.type = "button";
-    editBtn.textContent = "Edit";
-    editBtn.onclick = (e) => {
-      e.preventDefault();
-      openProviderEditor(p);
-    };
-
-    const delBtn = document.createElement("button");
-    delBtn.className = "btn";
-    delBtn.type = "button";
-    delBtn.textContent = "Delete";
-    delBtn.onclick = async (e) => {
-      e.preventDefault();
-      if (!confirm(`Delete provider "${p.label}"?`)) return;
-      const res = await window.api.deleteProvider(p.id);
-      if (!res?.ok) return showError(res.error || "Delete failed");
-      await refreshProvidersUI();
-      await applyFooterProviderLabel();
-    };
-
-    actionsEl.append(editBtn, delBtn);
-    row.append(meta, actionsEl);
-    provList.appendChild(row);
-  }
-}
-
-function openProviderEditor(p = null) {
-  $("p-id").value = p?.id || "";
-  $("p-label").value = p?.label || "";
-  pType.value = p?.type || "openai";
-  $("p-apiBase").value = p?.apiBase || "";
-  $("p-apiKey").value = "";
-  $("p-host").value = p?.host || "";
-  $("p-model").value = p?.model || "";
-  showProviderRowsForType(pType.value);
-  providerDlg.showModal();
-}
-
-$("providerCancelBtn")?.addEventListener("click", () => providerDlg.close());
-$("btn-add-provider")?.addEventListener("click", (e) => {
-  e.preventDefault();
-  openProviderEditor(null);
-});
-
-$("providerForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const prov = {
-    id: $("p-id").value || undefined,
-    label: $("p-label").value.trim() || "Provider",
-    type: pType.value,
-    apiBase: $("p-apiBase").value.trim() || undefined,
-    apiKey: $("p-apiKey").value.trim() || undefined,
-    host: $("p-host").value.trim() || undefined,
-    model: $("p-model").value.trim() || "",
-  };
-  const res = await window.api.saveProvider(prov);
-  if (!res?.ok) return showError(res.error || "Save failed");
-  providerDlg.close();
-  await refreshProvidersUI();
-  await applyFooterProviderLabel();
-});
-
-sDefaultProvider?.addEventListener("change", async () => {
-  const res = await window.api.setDefaultProvider(sDefaultProvider.value);
-  if (!res?.ok) return showError(res.error || "Failed to set default");
-  await applyFooterProviderLabel();
 });
 
 async function applyFooterProviderLabel() {
