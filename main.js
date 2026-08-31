@@ -394,6 +394,9 @@ function createSettingsWindow() {
     frame: false,
     backgroundColor: "#18181b",
     show: false,
+    // The launcher is alwaysOnTop. Without the same flag Settings opens *behind*
+    // it — visible only as a sliver, and unusable.
+    alwaysOnTop: true,
     title: "Echo Settings",
     icon: trayIconPath("app"),
     webPreferences: {
@@ -404,6 +407,13 @@ function createSettingsWindow() {
   });
 
   settingsWin.loadFile(resolveInApp("src", "settings.html"));
+
+  // macOS honours window levels, so put Settings a level above the launcher's
+  // default "floating". Linux and Windows only see the boolean, which is why
+  // the launcher also steps down for as long as Settings is open.
+  settingsWin.setAlwaysOnTop(true, "screen-saver");
+  settingsWin.on("show", () => setLauncherOnTop(false));
+  settingsWin.on("hide", () => setLauncherOnTop(true));
 
   if (process.env.ECHO_DEBUG) {
     settingsWin.webContents.on("console-message", (_e, level, message, line, source) => {
@@ -430,12 +440,23 @@ function openSettingsWindow() {
   blurIgnoreUntil = Date.now() + 500;
 
   const show = () => {
+    setLauncherOnTop(false);
     settingsWin.show();
+    settingsWin.moveTop();
     settingsWin.focus();
     settingsWin.webContents.send("settings:shown");
   };
   if (settingsWin.webContents.isLoading()) settingsWin.webContents.once("did-finish-load", show);
   else show();
+}
+
+// The launcher floats above every other window, which would include Settings.
+// Drop it to a normal level while Settings is up, and restore it afterwards.
+function setLauncherOnTop(onTop) {
+  if (!win || win.isDestroyed()) return;
+  try {
+    win.setAlwaysOnTop(onTop);
+  } catch {}
 }
 
 function settingsWindowOpen() {

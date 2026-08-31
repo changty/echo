@@ -27,7 +27,8 @@ copy — it hands the flags to the already-running instance and exits.
 
 | Compositor | Setup |
 |---|---|
-| Hyprland | `source = /path/to/echo/linux/hyprland.conf` |
+| Hyprland (`.conf`) | `source = /path/to/echo/linux/hyprland.conf` |
+| Hyprland (Lua, Omarchy 3+) | `dofile(os.getenv("HOME") .. "/git/echo/linux/hyprland.lua")` — Lua configs have no `source` directive |
 | sway | see `linux/sway.conf` |
 | GNOME | Settings → Keyboard → Custom Shortcuts → `echo-llm --toggle` |
 | KDE | System Settings → Shortcuts → Custom → `echo-llm --toggle` |
@@ -44,6 +45,30 @@ Confirm the class on your system with:
     hyprctl clients | grep -A2 -i echo     # Hyprland
     swaymsg -t get_tree | grep -i echo     # sway
 
+### One app_id, two windows
+
+`app_id` is a property of the process, not the window, so the launcher and the
+Settings window are both `echo`. Anything that should apply to one of them has
+to match the title as well — `Echo` for the launcher, `Echo Settings` for
+settings:
+
+    windowrulev2 = pin, class:^(echo)$, title:^(Echo)$          # Hyprland
+    for_window [app_id="echo" title="^Echo$"] sticky enable      # sway
+
+    o.window({ class = "^echo$", title = "^Echo$" }, { pin = true })   -- Lua
+
+Two rules are actively harmful on the bare app_id, and the shipped configs
+leave both out:
+
+- **`stayfocused`** keeps focus on the launcher no matter what, so the Settings
+  form silently swallows every keystroke. Echo's *Hide when the window loses
+  focus* setting covers the same need and only applies to the launcher.
+- **`pin`** / **`sticky`** raise a window above unpinned ones, so applying it to
+  both windows leaves Settings stuck behind the launcher.
+
+If Settings opens behind the launcher or refuses input, one of those two rules
+is almost always the reason.
+
 ## Installing
 
     npm run dist:linux
@@ -55,8 +80,8 @@ produces `Echo-<version>.AppImage` and `echo-<version>.tar.gz` in `dist/`.
 `dlopen(): error loading libfuse.so.2`. Either install the compat package
 (`sudo pacman -S fuse2`) or just use the tarball, which has no such dependency:
 
-    tar -xzf dist/echo-0.1.0.tar.gz -C ~/.local/opt/
-    ln -sf ~/.local/opt/echo-0.1.0/echo-llm ~/.local/bin/echo-llm
+    tar -xzf dist/echo-1.0.0.tar.gz -C ~/.local/opt/
+    ln -sf ~/.local/opt/echo-1.0.0/echo-llm ~/.local/bin/echo-llm
 
 Make sure `~/.local/bin` is on your `PATH`, and `echo-llm --toggle` in your
 compositor config will then just work.
